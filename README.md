@@ -3,14 +3,28 @@
 ### TODO
 1. add plotting
 2. add more forces to Tornado
-3. etc find something intresting
+3. etc. 
 
-# How to setup
+# How to set up and run
+If you are using PyCharm the dependencies should set up by themselves, and you should be able to run the code out of the box
+
 ## Linux and Macos
-1. chmod +x setup.sh
-2. source setup.sh
-3. python3 tornado.py
-additional -> to deactivate enviorment just type deactivate
+1. Adding permission to .sh file to create venv
+    ```bash
+    chmod +x setup.sh
+    ```
+2. Running .sh file to set up venv
+    ```bash
+    source setup.sh
+    ```
+3. Running file inside venv
+    ```bash
+    python3 tornado.py
+    ```
+4. Deactivating venv
+    ```bash
+    deactivate
+    ```
 
 ## Windows
 TODO

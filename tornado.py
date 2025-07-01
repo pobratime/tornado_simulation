@@ -8,7 +8,7 @@ class Sphere():
     def __init__(self):
         """OSNOVNI PODACI O SFERI"""
         # TODO DA KORISNIK MOZE ODABRATI OVE STVARI
-        self.position = np.array([0, 3, 10.0], dtype=float) # pozicija sfere u trenutku
+        self.position = np.array([0, 0, 1.0], dtype=float) # pozicija sfere u trenutku
         self.velocity = np.array([0, 0, 100 ], dtype=float) # brzina sfere
         self.acceleration = np.array([0, 0, 0], dtype=float) # ubrzanje sfere
         self.mass = 5 # masa sfere u kg

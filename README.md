@@ -27,4 +27,14 @@ If you are using PyCharm the dependencies should set up by themselves, and you s
     ```
 
 ## Windows
-TODO
+1. Create venv
+   ```bat
+   call setup.bat
+   ```
+2. Execute inside of venv
+   ```bat
+   python3 tornado.py
+   ```
+3. Deactivating venv
+   ```bat
+   deactivate

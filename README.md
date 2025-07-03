@@ -1,10 +1,5 @@
 # Tornado simulator
 
-### TODO
-1. add plotting
-2. add more forces to Tornado
-3. etc. 
-
 # How to set up and run
 If you are using PyCharm the dependencies should set up by themselves, and you should be able to run the code out of the box
 

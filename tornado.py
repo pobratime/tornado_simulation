@@ -17,7 +17,6 @@ import pyqtgraph as pq
 # Burgers vertex DONE
 # USER INPUT FIX
 # ADD GENERAL PLOTTING TAB
-# ADD TORNADO PLOTTING?
 # TODO TODO TODO TODO TODO
 
 class Sphere():
@@ -68,6 +67,12 @@ class Tornado():
         self.gravity = np.array([0, 0, -9.81], dtype=float) # -9.81 m/s !
         self.max_speed_horizontal = 150 
         self.max_speed_vertical = 150
+        
+        # BURGER VORTEX MODEL
+        self.nu = 0
+        self.gamma = 0
+        self.alpha = 0
+        
         self.inflow_angle = np.deg2rad(0)
         self.K = 0.5
 
@@ -75,6 +80,16 @@ class Tornado():
         x, y, _ = self.projectile.position
         r = np.sqrt(x**2 + y**2)
         return r <= self.radius
+
+    def calculate_magnus_effect(self):
+        """
+        MAGNUS EFFECT
+        
+        Parametri:
+        
+        Racunanje:
+        
+        """
 
     def calculate_air_resistance(self, wind_velocity):
         """
@@ -131,43 +146,44 @@ class Tornado():
     
         return velocity
 
+
     # def calculate_tornado_wind_velocity(self):
-    #     """
-    #     RACUNANJE BRZINE VETRA UNUTAR TORNADA
+        # """
+        # RACUNANJE BRZINE VETRA UNUTAR TORNADA
         
-    #     U ovo spada racuanje brzine kada je projektil u tornadu i koliko ga baca u stranu.
-    #     Takodje je uracunato i uzdizadnje projektila u vis kada se objekat nalazi u centru tornada.
-    #     Znaci da je uracunato kretanje objekta u vis i u stranu.
+        # U ovo spada racuanje brzine kada je projektil u tornadu i koliko ga baca u stranu.
+        # Takodje je uracunato i uzdizadnje projektila u vis kada se objekat nalazi u centru tornada.
+        # Znaci da je uracunato kretanje objekta u vis i u stranu.
         
-    #     Parametri:
-    #     x, y, _ -> trenutna pozicija projektila u trodimenzinalnom prostoru (z je zanemarljivo za horizontalno ubrzanje)
-    #     r -> razdaljina od sredine tornada do samog projektila koji se krece unutar njega
-    #     r_s -> poluprecnik samog tornada
-    #     u0 -> maksimalna brzina tornada po horizontalni
-    #     w0 -> maksimalna brzina tornada po vertikali
-    #     r_inner -> centar tornada gde se desava uzdizanje objekta
-    #     u_theta ->
-    #     u -> brzina po horizontali
-    #     w -> brzina po vertikali
-    #     v -> konacna brzina vetra unutar tornada
+        # Parametri:
+        # x, y, _ -> trenutna pozicija projektila u trodimenzinalnom prostoru (z je zanemarljivo za horizontalno ubrzanje)
+        # r -> razdaljina od sredine tornada do samog projektila koji se krece unutar njega
+        # r_s -> poluprecnik samog tornada
+        # u0 -> maksimalna brzina tornada po horizontalni
+        # w0 -> maksimalna brzina tornada po vertikali
+        # r_inner -> centar tornada gde se desava uzdizanje objekta
+        # u_theta ->
+        # u -> brzina po horizontali
+        # w -> brzina po vertikali
+        # v -> konacna brzina vetra unutar tornada
         
-    #     Racunjanje: 
-    #     r = sqrt(x^2 + y^2) -> racunanje razdaljine od centra tornada do projektila
-    #     r_inner -> pogledati f-iju calculate_core_radius()
-    #     u -> imamo tri situaicije:
-    #         1. ako je razdaljina od centra do projektila (r) manja od poluprecnika centra tornada (r_inner) postavljamo horizontalnu brzinu na maksimalnu mogucu
-    #            ovo znaci da se nalazimo u samom centru tornada
-    #         2. ako je razdaljina od centra do projektila (r) manja od poluprecnika samog tornada (r_s) horizontalnu brzinu racunamo kao u = u0 * (r_s / r)
-    #            ovo znaci da se nalazimo unutar tornada ali da se ne nalazimo u samom centru
-    #         3. ako je razdaljina od centra do projektila (r) veca od poluprecnika samog tornada (r_s) horizontalnu brzinu racunamo kao u = u0 * (r / r_s)
-    #            ovo znaci da se nalazimo van tornada
-    #     w -> imamo dve situacije:
-    #         1. ako je razdaljina od centra do projektila (r) manja od poluprecnika tornada (r_s) vertikalnu brzinu racunamo kao w = w0 * (1 - r / r_s)
-    #            ovo znaci da se nalazimo unutar tornada i da unutar njega postoji sila koja baca projektil u vis
-    #         2. u suprotnom znaci da se projektil nalazi van tornada te nema uzdizanja vec samo potencialno privlacenja i gravitacije
-    #     v -> konacnu brzinu vetra racunamo kao zbir trodimenzionalnog vektora vertikalne i horizontalne brzine
-    #     """
-        
+        # Racunjanje: 
+        # r = sqrt(x^2 + y^2) -> racunanje razdaljine od centra tornada do projektila
+        # r_inner -> pogledati f-iju calculate_core_radius()
+        # u -> imamo tri situaicije:
+        #     1. ako je razdaljina od centra do projektila (r) manja od poluprecnika centra tornada (r_inner) postavljamo horizontalnu brzinu na maksimalnu mogucu
+        #        ovo znaci da se nalazimo u samom centru tornada
+        #     2. ako je razdaljina od centra do projektila (r) manja od poluprecnika samog tornada (r_s) horizontalnu brzinu racunamo kao u = u0 * (r_s / r)
+        #        ovo znaci da se nalazimo unutar tornada ali da se ne nalazimo u samom centru
+        #     3. ako je razdaljina od centra do projektila (r) veca od poluprecnika samog tornada (r_s) horizontalnu brzinu racunamo kao u = u0 * (r / r_s)
+        #        ovo znaci da se nalazimo van tornada
+        # w -> imamo dve situacije:
+        #     1. ako je razdaljina od centra do projektila (r) manja od poluprecnika tornada (r_s) vertikalnu brzinu racunamo kao w = w0 * (1 - r / r_s)
+        #        ovo znaci da se nalazimo unutar tornada i da unutar njega postoji sila koja baca projektil u vis
+        #     2. u suprotnom znaci da se projektil nalazi van tornada te nema uzdizanja vec samo potencialno privlacenja i gravitacije
+        # v -> konacnu brzinu vetra racunamo kao zbir trodimenzionalnog vektora vertikalne i horizontalne brzine
+        # """
+    
     #     x, y, _ = self.projectile.position
     #     r = np.sqrt(np.pow(x, 2) + np.pow(y, 2))
     #     r_s = self.radius
@@ -391,7 +407,7 @@ class ControlPanel(QWidget):
         
         inflow_angle_input_layout = QHBoxLayout()
         inflow_angle_input_layout.addWidget(QLabel("Inflow angle"))
-        inflow_angle_input = QLineEdit("0")
+        inflow_angle_input = QLineEdit("BROKEN")
         inflow_angle_input_layout.addWidget(inflow_angle_input)
         tornado_layout.addLayout(inflow_angle_input_layout)
        
@@ -410,7 +426,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle('Tornado with 3D simulation and plotting')
-        self.resize(1280, 720)
+        self.resize(640, 480)
 
         self.tornado = Tornado()
 

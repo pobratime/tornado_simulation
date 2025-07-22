@@ -13,7 +13,6 @@ import pyqtgraph as pq
 # improve/fix air resistance?
 # check acceleration for bugs
 # check for bugs in general
-# pull off a Kurt Cobain pew pew head
 # Burgers vertex DONE
 # USER INPUT FIX
 # ADD GENERAL PLOTTING TAB

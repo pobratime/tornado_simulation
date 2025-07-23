@@ -2,9 +2,11 @@ import sys
 import numpy as np
 from PyQt5.QtWidgets import QApplication, QMainWindow, QTabWidget, QWidget, QVBoxLayout, QGridLayout, QPushButton, QHBoxLayout, QLabel, QLineEdit
 from PyQt5.QtCore import QTimer
+from pyvistaqt import QtInteractor
 import pyqtgraph.opengl as gl
 import pyqtgraph as pq
-
+import pyvista as pv
+from tqdm import tqdm
 import burger_vortex as bv
 
 # TODO TODO TODO TODO TODO
@@ -171,7 +173,6 @@ class Tornado():
         self.projectile.velocity += self.projectile.acceleration * delta_time
         self.projectile.position += self.projectile.velocity * delta_time
 
-
 """
 ==============================================================================================================================================================================
 SVE STO SE NALAZI ISPOD OVE LINIJE JE KOD TEHNICKE PRIRODE KOJI SE KORISTI ZA PRIKAZIVANJE I RENDEROVANJE I NIJE RELEVANTAN ZA RACUNANJE I OSTALE STVARI TE NIJE DOKUMENTIRAN
@@ -183,22 +184,149 @@ class KinematicSimulationTab(QWidget):
         super().__init__()
         layout = QVBoxLayout(self)
         self.view = gl.GLViewWidget()
-        self.view.opts['distance'] = 360
-        self.number_of_particles = 500
-        self.positions = np.random.uniform(-1, 1, (self.number_of_particles, 3))
+        self.view.opts['distance'] = 5
+        self.number_of_particles = 500  # More particles for better effect
+        self.max_radius = 2.0  # Maximum radius before particle is removed
+        self.spawn_radius = 1.8  # Radius at which new particles spawn
+        self.particle_lifetime = 0.0  # Track particle age
+        
+        # Initialize particles in a ring around the vortex
+        self.positions = self.initialize_particles()
+        self.particle_ages = np.zeros(self.number_of_particles)  # Track age of each particle
+        self.max_age = 15.0  # Maximum age before forced respawn
+        
         self.vortex = bv.BurgersVortex()
-        self.scatter = gl.GLScatterPlotItem(pos=self.positions, size=5, color=(0.2, 0.8, 1.0, 1.0), pxMode=True)
+        
+        # Create scatter plot with varying colors based on particle age
+        colors = self.get_particle_colors()
+        self.scatter = gl.GLScatterPlotItem(pos=self.positions, size=4, color=colors, pxMode=True)
         self.view.addItem(self.scatter)
-        layout.addWidget(self.view)  # Add this line, missing in your code
+        layout.addWidget(self.view)
+    
+    def initialize_particles(self):
+        """Initialize particles in a ring pattern around the vortex"""
+        positions = np.zeros((self.number_of_particles, 3))
+        for i in range(self.number_of_particles):
+            # Create particles in a ring at various radii
+            radius = np.random.uniform(0.5, self.spawn_radius)
+            angle = np.random.uniform(0, 2 * np.pi)
+            height = np.random.uniform(-1.0, 1.0)
+            
+            positions[i] = [
+                radius * np.cos(angle),
+                radius * np.sin(angle), 
+                height
+            ]
+        return positions
+    
+    def spawn_new_particle(self, index):
+        """Spawn a new particle at the outer edge"""
+        # Spawn at outer edge with some randomness
+        radius = np.random.uniform(self.spawn_radius * 0.9, self.spawn_radius)
+        angle = np.random.uniform(0, 2 * np.pi)
+        height = np.random.uniform(-1.0, 1.0)
+        
+        self.positions[index] = [
+            radius * np.cos(angle),
+            radius * np.sin(angle),
+            height
+        ]
+        self.particle_ages[index] = 0.0
+    
+    def get_particle_colors(self):
+        """Get colors based on particle age - newer particles are brighter"""
+        colors = np.zeros((self.number_of_particles, 4))
+        for i in range(self.number_of_particles):
+            # Fade from bright blue to darker blue as particles age
+            age_factor = min(self.particle_ages[i] / self.max_age, 1.0)
+            brightness = 1.0 - age_factor * 0.7  # Keep some minimum brightness
+            
+            colors[i] = [0.2 * brightness, 0.8 * brightness, 1.0 * brightness, 1.0]
+        return colors
 
     def update_kinematic(self, delta_time):
+        particles_to_respawn = []
+        
         for i in range(self.number_of_particles):
+            # Update particle age
+            self.particle_ages[i] += delta_time
+            
+            # Move particle according to vortex velocity
             vel = self.vortex.velocity(*self.positions[i])
             self.positions[i] += vel * delta_time
-            if np.linalg.norm(self.positions[i]) > 2.5 or abs(self.positions[i][2]) > 2.5:
-                self.positions[i] = np.random.uniform(-1, 1, 3)
-        self.scatter.setData(pos=self.positions)
+            
+            # Check distance from center
+            r = np.linalg.norm(self.positions[i][:2])
+            z = self.positions[i][2]
+            
+            # Mark particle for respawn if:
+            # 1. It's too far from center
+            # 2. It's too high/low  
+            # 3. It's too old
+            # 4. It's too close to center (consumed by vortex)
+            if (r > self.max_radius or 
+                abs(z) > 2.0 or 
+                self.particle_ages[i] > self.max_age or
+                r < 0.05):
+                particles_to_respawn.append(i)
         
+        # Respawn particles that went out of bounds
+        for i in particles_to_respawn:
+            self.spawn_new_particle(i)
+        
+        # Update colors based on age
+        colors = self.get_particle_colors()
+        
+        # Update the scatter plot
+        self.scatter.setData(pos=self.positions, color=colors)
+
+class LiutexTab(QWidget):
+    def __init__(self):
+        super().__init__()
+        layout = QVBoxLayout()
+        self.setLayout(layout)
+
+        self.plotter = QtInteractor(self)
+        layout.addWidget(self.plotter.interactor)
+
+        self.bv = bv.BurgersVortex()
+
+        self.compute_and_plot_streamlines()
+
+    def compute_and_plot_streamlines(self):
+        x = np.linspace(-5, 5, 100)
+        y = np.linspace(-5, 5, 100)
+        z = np.linspace(-5, 5, 100)
+        X, Y, Z = np.meshgrid(x, y, z, indexing='ij')
+
+        vectors = np.zeros((X.size, 3))
+        liutex = np.zeros(X.size)
+
+        for i in range(X.size):
+            xi, yi, zi = X.flat[i], Y.flat[i], Z.flat[i]
+            vectors[i] = self.bv.velocity(X.flat[i], Y.flat[i], Z.flat[i])
+            liutex[i] = self.bv.calculate_liutex_magnitude2(xi, yi, zi)
+
+        liutex_min = np.min(liutex)
+        liutex_max = np.max(liutex)
+        if liutex_max > liutex_min:
+            liutex_normalized = (liutex - liutex_min) / (liutex_max - liutex_min)
+        else:
+            liutex_normalized = liutex  
+        
+        grid = pv.StructuredGrid()
+        grid.points = np.c_[X.ravel(), Y.ravel(), Z.ravel()]
+        grid.dimensions = X.shape
+        grid['vectors'] = vectors
+        grid['liutex'] = liutex_normalized
+        
+        stream = grid.streamlines('vectors', source_center=(0, 0, 0), n_points=500)
+
+        tubes = stream.tube(radius=0.005)
+
+        self.plotter.add_mesh(tubes, scalars='liutex', cmap='coolwarm')
+        self.plotter.reset_camera()
+
 
 class TornadoSimulationTab(QWidget):
     def __init__(self, tornado):
@@ -361,8 +489,11 @@ class ControlPanel(QWidget):
         while mainWindow and not isinstance(mainWindow, QMainWindow):
             mainWindow = mainWindow.parent()
 
+        if mainWindow is None:
+            return
+            
         mainWindow.stop_update()
-
+        
         if not hasattr(mainWindow, 'timer'):
             mainWindow.timer = QTimer()
             mainWindow.timer.timeout.connect(mainWindow.update_all)
@@ -387,11 +518,14 @@ class MainWindow(QMainWindow):
         self.sim_tab = TornadoSimulationTab(self.tornado)
         self.plot_tab = PlottingTab(self.tornado, ["vx", "vy", "vz"], lambda: self.tornado.projectile.velocity)
         self.plot_tab_acc = PlottingTab(self.tornado, ["ax", "ay", "az"], lambda: self.tornado.projectile.acceleration)
+        self.liutex_tab = LiutexTab()
 
         self.tabs.addTab(self.sim_tab, "Tornado Simulation")
         self.tabs.addTab(self.kinematic_tab, "KinematicTab")
         self.tabs.addTab(self.plot_tab, "Tornado Plotting Vel")
         self.tabs.addTab(self.plot_tab_acc, "Tornado Plotting Acc")
+        self.tabs.addTab(self.liutex_tab, "Liutex")
+
 
         self.control_panel = ControlPanel(self.tornado)
         main_layout.addWidget(self.control_panel)

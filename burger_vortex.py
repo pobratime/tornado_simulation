@@ -2,9 +2,9 @@ import numpy as np
 
 class BurgersVortex():
     def __init__(self):
-      self.alpha = 0.1 # Strain rate
-      self.Gamma = 5 # Circulation
-      self.nu = 1.5e-4 # Kinematic viscosity
+      self.alpha = 0.042 # Strain rate
+      self.Gamma = 1.45 # Circulation
+      self.nu = 0.01 # Kinematic viscosity
       
     def velocity(self, x, y, z):
       """
@@ -12,9 +12,8 @@ class BurgersVortex():
       Nakon toga ih prebacujemo u Dekartov pravougli koordinatni sistem
       """
       # distanca od z ose
-      r = np.sqrt(x**2 + y**2) 
-      if r < 1e-10:
-        r = 1e-10
+      r = np.sqrt(x**2 + y**2)
+      r = np.where(r < 1e-10, 1e-10, r)
       
       v_r = - self.alpha * r
       v_z = 2 * self.alpha * z
@@ -84,15 +83,34 @@ class BurgersVortex():
       
       return lambda_2
     
-def calculate_alpha_beta(self, x, y, z):
-    h = 1e-6  
-    du_dx = (self.velocity(x + h, y, z)[0] - self.velocity(x - h, y, z)[0]) / (2 * h)
-    du_dy = (self.velocity(x, y + h, z)[0] - self.velocity(x, y - h, z)[0]) / (2 * h)
-    dv_dx = (self.velocity(x + h, y, z)[1] - self.velocity(x - h, y, z)[1]) / (2 * h)
-    dv_dy = (self.velocity(x, y + h, z)[1] - self.velocity(x, y - h, z)[1]) / (2 * h)
+    def calculate_alpha_beta(self, x, y, z):
+      h = 1e-6
+      du_dx = (self.velocity(x + h, y, z)[0] - self.velocity(x - h, y, z)[0]) / (2 * h)
+      du_dy = (self.velocity(x, y + h, z)[0] - self.velocity(x, y - h, z)[0]) / (2 * h)
+      dv_dx = (self.velocity(x + h, y, z)[1] - self.velocity(x - h, y, z)[1]) / (2 * h)
+      dv_dy = (self.velocity(x, y + h, z)[1] - self.velocity(x, y - h, z)[1]) / (2 * h)
 
-    alpha = 0.5 * np.sqrt((dv_dy - du_dx)**2 + (dv_dx + du_dy)**2)
-    beta = 0.5 * (dv_dx - du_dy)
+      alpha = 0.5 * np.sqrt((dv_dy - du_dx)**2 + (dv_dx + du_dy)**2)
+      beta = 0.5 * (dv_dx - du_dy)
 
-    return alpha, beta
-      
+      return alpha, beta
+
+    def calculate_liutex_magnitude(self, x, y, z):
+      alpha, beta = self.calculate_alpha_beta(x, y, z)
+      if(beta**2 > alpha**2):
+        R = 2 * (np.abs(beta) - alpha)
+      else:
+        R = 0
+        
+      return R
+    
+    def calculate_liutex_magnitude2(self, x, y, z):
+      grad = self.velocity_gradient(x, y, z)
+
+      omega = np.array([
+          grad[2,1] - grad[1,2],
+          grad[0,2] - grad[2,0],
+          grad[1,0] - grad[0,1]
+      ])
+
+      return abs(omega[2])

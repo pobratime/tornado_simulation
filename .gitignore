@@ -1,4 +1,44 @@
-.DS_store
+# Python cache and bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment folders
 venv/
+env/
+tornado-env/
+.anaconda/
+.fenics-env/
+*.conda
+*.env
+
+# Conda environment files if you don't want to commit them (optional)
+# environment.yml
+# requirements.txt
+
+# IDE/editor files
 .vscode/
 .idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Compiled C++ or other binaries (if any build outputs)
+*.o
+*.so
+*.exe
+*.out
+*.dll
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Backup files
+*~

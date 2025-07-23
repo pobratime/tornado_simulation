@@ -5,6 +5,8 @@ from PyQt5.QtCore import QTimer
 import pyqtgraph.opengl as gl
 import pyqtgraph as pq
 
+import burger_vortex as bv
+
 # TODO TODO TODO TODO TODO
 # magnus effect -> for projectile rotation
 # swirl ratio
@@ -13,7 +15,6 @@ import pyqtgraph as pq
 # improve/fix air resistance?
 # check acceleration for bugs
 # check for bugs in general
-# pull off a Kurt Cobain pew pew head
 # Burgers vertex DONE
 # USER INPUT FIX
 # ADD GENERAL PLOTTING TAB
@@ -27,7 +28,7 @@ class Sphere():
         Kao projektil u ovom slucaju koristmo sferu jer je najalaksa za sada.
         
         Parametri:
-        position -> trenutna pozicija projektila prostoru kao 3d vektor
+        position -> trenutna pozicija projektila prostoru kao :d vektor
         velocity -> trenutna brzina projektila (jer brzina u sva tri pravca) kao 3d vektor
         acceleration -> trenutno ubrzanje projektila kao 3d vektor
         mass -> masa projektila
@@ -38,8 +39,8 @@ class Sphere():
         self.position = np.array([0, 3, 30.0], dtype=float)
         self.velocity = np.array([0, 0, 0], dtype=float)
         self.acceleration = np.array([0, 0, 0], dtype=float)
-        self.mass = 20
-        self.radius = 3
+        self.mass = 0.2
+        self.radius = 0.5
         self.diameter = 2 * self.radius
         
 class Tornado():
@@ -68,10 +69,7 @@ class Tornado():
         self.max_speed_horizontal = 150 
         self.max_speed_vertical = 150
         
-        # BURGER VORTEX MODEL
-        self.nu = 0
-        self.gamma = 0
-        self.alpha = 0
+        self.bv = bv.BurgersVortex()
         
         self.inflow_angle = np.deg2rad(0)
         self.K = 0.5
@@ -90,6 +88,8 @@ class Tornado():
         Racunanje:
         
         """
+        # TOOD
+        return np.array([0, 0, 0])
 
     def calculate_air_resistance(self, wind_velocity):
         """
@@ -123,95 +123,10 @@ class Tornado():
         PROVERITI OVO I NAMESTITI OSTATAK
         """
         x, y, z = self.projectile.position
-        r = np.sqrt(x**2 + y**2)
-    
-        alpha = 0.1 
-        nu = 1.5e-5       
-        Gamma = 2000     
-    
-        if r < 1e-10:
-            r = 1e-10
-    
-        v_r = -alpha * r                 
-        v_z = 2 * alpha * z             
-    
-        Re_local = alpha * r**2 / (2 * nu)
-        v_theta = (Gamma / (2 * np.pi * r)) * (1 - np.exp(-Re_local))
-    
-        velocity = np.array([
-            v_r * x/r - v_theta * y/r,  
-            v_r * y/r + v_theta * x/r,  
-            v_z                        
-        ])
-    
+        velocity = self.bv.velocity(x, y, z)
+        
         return velocity
-
-
-    # def calculate_tornado_wind_velocity(self):
-        # """
-        # RACUNANJE BRZINE VETRA UNUTAR TORNADA
-        
-        # U ovo spada racuanje brzine kada je projektil u tornadu i koliko ga baca u stranu.
-        # Takodje je uracunato i uzdizadnje projektila u vis kada se objekat nalazi u centru tornada.
-        # Znaci da je uracunato kretanje objekta u vis i u stranu.
-        
-        # Parametri:
-        # x, y, _ -> trenutna pozicija projektila u trodimenzinalnom prostoru (z je zanemarljivo za horizontalno ubrzanje)
-        # r -> razdaljina od sredine tornada do samog projektila koji se krece unutar njega
-        # r_s -> poluprecnik samog tornada
-        # u0 -> maksimalna brzina tornada po horizontalni
-        # w0 -> maksimalna brzina tornada po vertikali
-        # r_inner -> centar tornada gde se desava uzdizanje objekta
-        # u_theta ->
-        # u -> brzina po horizontali
-        # w -> brzina po vertikali
-        # v -> konacna brzina vetra unutar tornada
-        
-        # Racunjanje: 
-        # r = sqrt(x^2 + y^2) -> racunanje razdaljine od centra tornada do projektila
-        # r_inner -> pogledati f-iju calculate_core_radius()
-        # u -> imamo tri situaicije:
-        #     1. ako je razdaljina od centra do projektila (r) manja od poluprecnika centra tornada (r_inner) postavljamo horizontalnu brzinu na maksimalnu mogucu
-        #        ovo znaci da se nalazimo u samom centru tornada
-        #     2. ako je razdaljina od centra do projektila (r) manja od poluprecnika samog tornada (r_s) horizontalnu brzinu racunamo kao u = u0 * (r_s / r)
-        #        ovo znaci da se nalazimo unutar tornada ali da se ne nalazimo u samom centru
-        #     3. ako je razdaljina od centra do projektila (r) veca od poluprecnika samog tornada (r_s) horizontalnu brzinu racunamo kao u = u0 * (r / r_s)
-        #        ovo znaci da se nalazimo van tornada
-        # w -> imamo dve situacije:
-        #     1. ako je razdaljina od centra do projektila (r) manja od poluprecnika tornada (r_s) vertikalnu brzinu racunamo kao w = w0 * (1 - r / r_s)
-        #        ovo znaci da se nalazimo unutar tornada i da unutar njega postoji sila koja baca projektil u vis
-        #     2. u suprotnom znaci da se projektil nalazi van tornada te nema uzdizanja vec samo potencialno privlacenja i gravitacije
-        # v -> konacnu brzinu vetra racunamo kao zbir trodimenzionalnog vektora vertikalne i horizontalne brzine
-        # """
-    
-    #     x, y, _ = self.projectile.position
-    #     r = np.sqrt(np.pow(x, 2) + np.pow(y, 2))
-    #     r_s = self.radius
-    #     u0 = self.max_speed_horizontal
-    #     w0 = self.max_speed_vertical
-    #     r_inner = self.calculate_core_radius()
-        
-    #     u_theta = np.array([-y/r, x/r, 0.0])
-        
-    #     if r < r_inner:
-    #         u = u0
-    #     elif r > r_s:
-    #         u = u0 * (r_s / r)
-    #     else:
-    #         u = u0 * (r / r_s)
-            
-    #     if r < r_s:
-    #         w = w0 * (1 - r / r_s)
-    #     else:
-    #         w = 0
-            
-    #     vertical_component = np.array([0.0, 0.0, w])
-    #     horizontal_component = u * u_theta
-        
-    #     v = horizontal_component  + vertical_component
-        
-    #     return v
-      
+         
     def calulate_acceleration(self):
         """
         RACUNANJE UBZANJA SFERE
@@ -262,6 +177,28 @@ class Tornado():
 SVE STO SE NALAZI ISPOD OVE LINIJE JE KOD TEHNICKE PRIRODE KOJI SE KORISTI ZA PRIKAZIVANJE I RENDEROVANJE I NIJE RELEVANTAN ZA RACUNANJE I OSTALE STVARI TE NIJE DOKUMENTIRAN
 ==============================================================================================================================================================================
 """
+
+class KinematicSimulationTab(QWidget):
+    def __init__(self):
+        super().__init__()
+        layout = QVBoxLayout(self)
+        self.view = gl.GLViewWidget()
+        self.view.opts['distance'] = 360
+        self.number_of_particles = 500
+        self.positions = np.random.uniform(-1, 1, (self.number_of_particles, 3))
+        self.vortex = bv.BurgersVortex()
+        self.scatter = gl.GLScatterPlotItem(pos=self.positions, size=5, color=(0.2, 0.8, 1.0, 1.0), pxMode=True)
+        self.view.addItem(self.scatter)
+        layout.addWidget(self.view)  # Add this line, missing in your code
+
+    def update_kinematic(self, delta_time):
+        for i in range(self.number_of_particles):
+            vel = self.vortex.velocity(*self.positions[i])
+            self.positions[i] += vel * delta_time
+            if np.linalg.norm(self.positions[i]) > 2.5 or abs(self.positions[i][2]) > 2.5:
+                self.positions[i] = np.random.uniform(-1, 1, 3)
+        self.scatter.setData(pos=self.positions)
+        
 
 class TornadoSimulationTab(QWidget):
     def __init__(self, tornado):
@@ -420,7 +357,17 @@ class ControlPanel(QWidget):
         layout.addWidget(self.launch_button)
 
     def launch_projectile(self):
-        pass
+        mainWindow = self.parent()
+        while mainWindow and not isinstance(mainWindow, QMainWindow):
+            mainWindow = mainWindow.parent()
+
+        mainWindow.stop_update()
+
+        if not hasattr(mainWindow, 'timer'):
+            mainWindow.timer = QTimer()
+            mainWindow.timer.timeout.connect(mainWindow.update_all)
+            mainWindow.timer.start(16)
+            mainWindow.time = 0.0
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -436,11 +383,13 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         main_layout.addWidget(self.tabs)
 
+        self.kinematic_tab = KinematicSimulationTab()
         self.sim_tab = TornadoSimulationTab(self.tornado)
         self.plot_tab = PlottingTab(self.tornado, ["vx", "vy", "vz"], lambda: self.tornado.projectile.velocity)
         self.plot_tab_acc = PlottingTab(self.tornado, ["ax", "ay", "az"], lambda: self.tornado.projectile.acceleration)
-        
+
         self.tabs.addTab(self.sim_tab, "Tornado Simulation")
+        self.tabs.addTab(self.kinematic_tab, "KinematicTab")
         self.tabs.addTab(self.plot_tab, "Tornado Plotting Vel")
         self.tabs.addTab(self.plot_tab_acc, "Tornado Plotting Acc")
 
@@ -448,12 +397,12 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(self.control_panel)
         
         self.setCentralWidget(main_widget)
-
-        self.timer = QTimer()
-        self.timer.timeout.connect(self.update_all)
-        self.timer.start(16)
-
-        self.time = 0.0
+    
+    def update_tornado(self):
+        self.tornado = Tornado()
+        self.sim_tab.tornado = self.tornado
+        self.plot_tab.tornado = self.tornado
+        self.plot_tab_acc.tornado = self.tornado
 
     def update_all(self):
         if self.tornado.projectile.position[2] > 0:
@@ -462,9 +411,34 @@ class MainWindow(QMainWindow):
             self.time += delta_time
             self.plot_tab.update_plots(self.time)
             self.plot_tab_acc.update_plots(self.time)
+            self.kinematic_tab.update_kinematic(self.time)
             
         else:
             self.timer.stop()
+    
+    def stop_update(self):
+        if hasattr(self, 'timer'):
+            self.timer.stop()
+            self.timer.deleteLater()
+            del self.timer
+
+        self.time = 0.0
+        self.sim_tab.positions = []
+        self.sim_tab.line.setData(pos=np.empty((0, 3)))
+        self.sim_tab.point.setData(pos=np.empty((0, 3)))
+        self.update_tornado()
+
+        self.plot_tab.times = []
+        self.plot_tab.data_series = [[] for _ in range(3)]
+        self.plot_tab.data_series_magnitude = []
+        for curve in self.plot_tab.curves:
+            curve.setData([], [])
+
+        self.plot_tab_acc.times = []
+        self.plot_tab_acc.data_series = [[] for _ in range(3)]
+        self.plot_tab_acc.data_series_magnitude = []
+        for curve in self.plot_tab_acc.curves:
+            curve.setData([], [])
 
 def main():
     app = QApplication(sys.argv)

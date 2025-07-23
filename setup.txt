@@ -1,0 +1,4 @@
+conda create -n fenics-env python=3.11
+conda activate fenics-env
+conda install -c conda-forge fenics
+conda env create -f environment.yml

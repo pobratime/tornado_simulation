@@ -2,9 +2,9 @@ import numpy as np
 
 class BurgersVortex():
     def __init__(self):
-      self.alpha = 1 # Strain rate
-      self.Gamma = 1000.45 # Circulation
-      self.nu = 1.5e-5 # Kinematic viscosity
+      self.alpha = 0.1 # Strain rate
+      self.Gamma = 5 # Circulation
+      self.nu = 1.5e-4 # Kinematic viscosity
       
     def velocity(self, x, y, z):
       """

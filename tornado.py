@@ -1,6 +1,6 @@
 import sys
 import numpy as np
-from PyQt5.QtWidgets import QApplication, QMainWindow, QTabWidget, QWidget, QVBoxLayout, QGridLayout, QPushButton, QHBoxLayout, QLabel, QLineEdit, QCheckBox
+from PyQt5.QtWidgets import QApplication, QMainWindow, QTabWidget, QWidget, QVBoxLayout, QGridLayout, QPushButton, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QListWidget
 from PyQt5.QtCore import QTimer, pyqtSignal
 from pyvistaqt import QtInteractor
 import pyqtgraph.opengl as gl
@@ -10,6 +10,12 @@ from tqdm import tqdm
 import burger_vortex as bv
 
 show_liutex_tab = False
+liutex_settings_selected = None
+liutex_settings = {
+    "Low": (0.15, 10),
+    "Medium": (1.5, 25),
+    "High": (5, 100)
+}
 
 # TODO TODO TODO TODO TODO
 # magnus effect -> for projectile rotation
@@ -25,6 +31,7 @@ show_liutex_tab = False
 # TODO TODO TODO TODO TODO
 
 class Sphere():
+    
     def __init__(self):
         """
         OSNOVNI PODACI O PROJEKTILU
@@ -283,10 +290,13 @@ class KinematicSimulationTab(QWidget):
         self.scatter.setData(pos=self.positions, color=colors)
 
 class LiutexTab(QWidget):
-    def __init__(self):
+    def __init__(self, max_x_value, num_of_points):
         super().__init__()
         layout = QVBoxLayout()
         self.setLayout(layout)
+
+        self.max_x_value = max_x_value
+        self.num_of_points = num_of_points
 
         self.plotter = QtInteractor(self)
         layout.addWidget(self.plotter.interactor)
@@ -296,9 +306,9 @@ class LiutexTab(QWidget):
         self.compute_and_plot_streamlines()
 
     def compute_and_plot_streamlines(self):
-        x = np.linspace(-5, 5, 100)
-        y = np.linspace(-5, 5, 100)
-        z = np.linspace(-5, 5, 100)
+        x = np.linspace(-self.max_x_value, self.max_x_value, self.num_of_points)
+        y = np.linspace(-self.max_x_value, self.max_x_value, self.num_of_points)
+        z = np.linspace(-self.max_x_value, self.max_x_value, self.num_of_points)
         X, Y, Z = np.meshgrid(x, y, z, indexing='ij')
 
         vectors = np.zeros((X.size, 3))
@@ -522,7 +532,8 @@ class MainWindow(QMainWindow):
         self.plot_tab_acc = PlottingTab(self.tornado, ["ax", "ay", "az"], lambda: self.tornado.projectile.acceleration)
 
         if show_liutex_tab:
-            self.liutex_tab = LiutexTab()
+            assert liutex_settings_selected is not None, "Liutex settings must be selected before showing the tab."
+            self.liutex_tab = LiutexTab(liutex_settings[liutex_settings_selected][0], liutex_settings[liutex_settings_selected][1])
 
         self.tabs.addTab(self.sim_tab, "Tornado Simulation")
         self.tabs.addTab(self.kinematic_tab, "KinematicTab")
@@ -582,15 +593,21 @@ class MainWindow(QMainWindow):
 class PopUpWindow(QMainWindow):
     ok_clicked = pyqtSignal()
 
-    def __init__(self, message):
+    def __init__(self):
         super().__init__()
-        self.setWindowTitle("Error")
+        self.setWindowTitle("Liutex settings")
         self.setGeometry(100, 100, 300, 100)
         
         layout = QVBoxLayout()
         self.checkbox = QCheckBox("Show Liutex Tab")
         self.checkbox.setChecked(False)
+        self.checkbox.stateChanged.connect(self.toggle_listbox_visibility)
         layout.addWidget(self.checkbox)
+
+        self.listbox = QListWidget()
+        self.listbox.addItems(["Low", "Medium", "High"])
+        self.listbox.setVisible(False)
+        layout.addWidget(self.listbox)
         
         button = QPushButton("OK")
         button.clicked.connect(self.on_ok_clicked)
@@ -601,14 +618,18 @@ class PopUpWindow(QMainWindow):
         self.setCentralWidget(container)
     
     def on_ok_clicked(self):
-        global show_liutex_tab
+        global show_liutex_tab, liutex_settings_selected
         show_liutex_tab = self.checkbox.isChecked()
+        liutex_settings_selected = self.listbox.currentItem().text() if self.listbox.currentItem() else None
         self.close()
         self.ok_clicked.emit()
+    
+    def toggle_listbox_visibility(self):
+        self.listbox.setVisible(self.checkbox.isChecked())
 
 def main():
     app = QApplication(sys.argv)
-    popup_window = PopUpWindow("Ide gas")
+    popup_window = PopUpWindow()
     popup_window.show()
 
     def open_main_window():

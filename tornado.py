@@ -559,10 +559,19 @@ class MainWindow(QMainWindow):
         if show_liutex_tab:
             self.tabs.addTab(self.liutex_tab, "Liutex")
 
+        self.tabs.currentChanged.connect(self.on_tab_changed)
+
         self.control_panel = ControlPanel(self.tornado)
         main_layout.addWidget(self.control_panel)
         
         self.setCentralWidget(main_widget)
+    
+    def on_tab_changed(self):
+        tabText = self.tabs.tabText(self.tabs.currentIndex())
+        if tabText == "Liutex":
+            self.control_panel.setVisible(False)
+        else:
+            self.control_panel.setVisible(True)
     
     def update_tornado(self):
         self.tornado = Tornado()

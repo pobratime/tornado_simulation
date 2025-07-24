@@ -2,12 +2,14 @@ import sys
 import numpy as np
 from PyQt5.QtWidgets import QApplication, QMainWindow, QTabWidget, QWidget, QVBoxLayout, QGridLayout, QPushButton, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QListWidget
 from PyQt5.QtCore import QTimer, pyqtSignal
+from PyQt5.QtGui import QDoubleValidator
 from pyvistaqt import QtInteractor
 import pyqtgraph.opengl as gl
 import pyqtgraph as pq
 import pyvista as pv
 from tqdm import tqdm
 import burger_vortex as bv
+import math
 
 show_liutex_tab = False
 liutex_settings_selected = None
@@ -419,6 +421,25 @@ class ControlPanel(QWidget):
         super().__init__()
         layout = QHBoxLayout(self)
         self.tornado = tornado
+
+        maxInputValue = 10000.00
+
+        def sign(value):
+            return (value > 0) - (value < 0)
+
+        def is_float(value):
+            try:
+                float(value)
+                return True
+            except ValueError:
+                return False
+
+        def check_value(obj):
+            text = obj.text()
+            if text and is_float(text):
+                value = float(text)
+                if abs(value) > maxInputValue:
+                    obj.setText(f"{sign(value) * maxInputValue:.2f}")
         
         projectile_layout = QVBoxLayout()
         projectile_layout.addWidget(QLabel("Projectile details"))
@@ -427,12 +448,14 @@ class ControlPanel(QWidget):
         pos_input.addWidget(QLabel("Projectile starting postition (x, y, z)"))
         for i in range(3):
             le = QLineEdit("0")
+            le.textChanged.connect(lambda _t, w=le: check_value(w))
             pos_input.addWidget(le)
             
         vel_input = QHBoxLayout()
         vel_input.addWidget(QLabel("Projectile starting velocity (x, y, z)"))
         for i in range(3):
             le = QLineEdit("0")
+            le.textChanged.connect(lambda _t, w=le: check_value(w))
             vel_input.addWidget(le)
             
         projectile_layout.addLayout(pos_input)
@@ -441,11 +464,15 @@ class ControlPanel(QWidget):
         mass_input_layout = QHBoxLayout()
         mass_input_layout.addWidget(QLabel("Projectile mass in kg"))
         mass_input = QLineEdit("0")
+        mass_input.setValidator(QDoubleValidator(-maxInputValue, maxInputValue, 2))
+        mass_input.textChanged.connect(lambda: check_value(mass_input))
         mass_input_layout.addWidget(mass_input)
        
         radius_input_layout = QHBoxLayout()
         radius_input_layout.addWidget(QLabel("Projectile radius in m"))
         radius_input = QLineEdit("0")
+        radius_input.setValidator(QDoubleValidator(-maxInputValue, maxInputValue, 2))
+        radius_input.textChanged.connect(lambda: check_value(radius_input))
         radius_input_layout.addWidget(radius_input)
         
         projectile_layout.addLayout(mass_input_layout)
@@ -457,27 +484,26 @@ class ControlPanel(QWidget):
         alpha_input_layout = QHBoxLayout()
         alpha_input_layout.addWidget(QLabel("Alpha"))
         alpha_input = QLineEdit("0")
+        alpha_input.setValidator(QDoubleValidator(-maxInputValue, maxInputValue, 2))
+        alpha_input.textChanged.connect(lambda: check_value(alpha_input))
         alpha_input_layout.addWidget(alpha_input) 
         tornado_layout.addLayout(alpha_input_layout)
         
         nu_input_layout = QHBoxLayout()
-        nu_input_layout.addWidget(QLabel("Gamma"))
+        nu_input_layout.addWidget(QLabel("Nu"))
         nu_input = QLineEdit("0")
+        nu_input.setValidator(QDoubleValidator(-maxInputValue, maxInputValue, 2))
+        nu_input.textChanged.connect(lambda: check_value(nu_input))
         nu_input_layout.addWidget(nu_input)
         tornado_layout.addLayout(nu_input_layout)
         
         gamma_input_layout = QHBoxLayout()
         gamma_input_layout.addWidget(QLabel("Gamma"))
         gamma_input = QLineEdit("0")
+        gamma_input.setValidator(QDoubleValidator(-maxInputValue, maxInputValue, 2))
+        gamma_input.textChanged.connect(lambda: check_value(gamma_input))
         gamma_input_layout.addWidget(gamma_input)
         tornado_layout.addLayout(gamma_input_layout)
-        
-        inflow_angle_input_layout = QHBoxLayout()
-        inflow_angle_input_layout.addWidget(QLabel("Inflow angle"))
-        inflow_angle_input = QLineEdit("BROKEN")
-        inflow_angle_input_layout.addWidget(inflow_angle_input)
-        tornado_layout.addLayout(inflow_angle_input_layout)
-       
         
         self.launch_button = QPushButton("Launch Projectile")
         self.launch_button.clicked.connect(self.launch_projectile)

@@ -1,13 +1,15 @@
 import sys
 import numpy as np
-from PyQt5.QtWidgets import QApplication, QMainWindow, QTabWidget, QWidget, QVBoxLayout, QGridLayout, QPushButton, QHBoxLayout, QLabel, QLineEdit
-from PyQt5.QtCore import QTimer
+from PyQt5.QtWidgets import QApplication, QMainWindow, QTabWidget, QWidget, QVBoxLayout, QGridLayout, QPushButton, QHBoxLayout, QLabel, QLineEdit, QCheckBox
+from PyQt5.QtCore import QTimer, pyqtSignal
 from pyvistaqt import QtInteractor
 import pyqtgraph.opengl as gl
 import pyqtgraph as pq
 import pyvista as pv
 from tqdm import tqdm
 import burger_vortex as bv
+
+show_liutex_tab = False
 
 # TODO TODO TODO TODO TODO
 # magnus effect -> for projectile rotation
@@ -518,14 +520,17 @@ class MainWindow(QMainWindow):
         self.sim_tab = TornadoSimulationTab(self.tornado)
         self.plot_tab = PlottingTab(self.tornado, ["vx", "vy", "vz"], lambda: self.tornado.projectile.velocity)
         self.plot_tab_acc = PlottingTab(self.tornado, ["ax", "ay", "az"], lambda: self.tornado.projectile.acceleration)
-        self.liutex_tab = LiutexTab()
+
+        if show_liutex_tab:
+            self.liutex_tab = LiutexTab()
 
         self.tabs.addTab(self.sim_tab, "Tornado Simulation")
         self.tabs.addTab(self.kinematic_tab, "KinematicTab")
         self.tabs.addTab(self.plot_tab, "Tornado Plotting Vel")
         self.tabs.addTab(self.plot_tab_acc, "Tornado Plotting Acc")
-        self.tabs.addTab(self.liutex_tab, "Liutex")
 
+        if show_liutex_tab:
+            self.tabs.addTab(self.liutex_tab, "Liutex")
 
         self.control_panel = ControlPanel(self.tornado)
         main_layout.addWidget(self.control_panel)
@@ -574,10 +579,43 @@ class MainWindow(QMainWindow):
         for curve in self.plot_tab_acc.curves:
             curve.setData([], [])
 
+class PopUpWindow(QMainWindow):
+    ok_clicked = pyqtSignal()
+
+    def __init__(self, message):
+        super().__init__()
+        self.setWindowTitle("Error")
+        self.setGeometry(100, 100, 300, 100)
+        
+        layout = QVBoxLayout()
+        self.checkbox = QCheckBox("Show Liutex Tab")
+        self.checkbox.setChecked(False)
+        layout.addWidget(self.checkbox)
+        
+        button = QPushButton("OK")
+        button.clicked.connect(self.on_ok_clicked)
+        layout.addWidget(button)
+        
+        container = QWidget()
+        container.setLayout(layout)
+        self.setCentralWidget(container)
+    
+    def on_ok_clicked(self):
+        global show_liutex_tab
+        show_liutex_tab = self.checkbox.isChecked()
+        self.close()
+        self.ok_clicked.emit()
+
 def main():
     app = QApplication(sys.argv)
-    main_window = MainWindow()
-    main_window.show()
+    popup_window = PopUpWindow("Ide gas")
+    popup_window.show()
+
+    def open_main_window():
+        main_window = MainWindow()
+        main_window.show()
+    
+    popup_window.ok_clicked.connect(open_main_window)
     sys.exit(app.exec_())
 
 if __name__ == "__main__":

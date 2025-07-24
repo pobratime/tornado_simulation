@@ -452,15 +452,17 @@ class ControlPanel(QWidget):
         
         pos_input = QHBoxLayout()
         pos_input.addWidget(QLabel("Projectile starting postition (x, y, z)"))
+        positionVec = [0.0, 3.0, 30.0]
         for i in range(3):
-            le = QLineEdit("0")
+            le = QLineEdit(str(positionVec[i]))
             le.textChanged.connect(lambda _t, w=le: check_value(w))
             pos_input.addWidget(le)
             
         vel_input = QHBoxLayout()
         vel_input.addWidget(QLabel("Projectile starting velocity (x, y, z)"))
+        velosityVec = [0.0, 0.0, 0.0]
         for i in range(3):
-            le = QLineEdit("0")
+            le = QLineEdit(str(velosityVec[i]))
             le.textChanged.connect(lambda _t, w=le: check_value(w))
             vel_input.addWidget(le)
             
@@ -469,7 +471,7 @@ class ControlPanel(QWidget):
         
         mass_input_layout = QHBoxLayout()
         mass_input_layout.addWidget(QLabel("Projectile mass in kg"))
-        mass_input = QLineEdit("0")
+        mass_input = QLineEdit("20.0")
         mass_input.setObjectName("mass")
         mass_input.setValidator(QDoubleValidator(-maxInputValue, maxInputValue, 2))
         mass_input.textChanged.connect(lambda: check_value(mass_input))
@@ -477,7 +479,7 @@ class ControlPanel(QWidget):
        
         radius_input_layout = QHBoxLayout()
         radius_input_layout.addWidget(QLabel("Projectile radius in m"))
-        radius_input = QLineEdit("0")
+        radius_input = QLineEdit("3.0")
         radius_input.setObjectName("radius")
         radius_input.setValidator(QDoubleValidator(-maxInputValue, maxInputValue, 2))
         radius_input.textChanged.connect(lambda: check_value(radius_input))
@@ -491,7 +493,7 @@ class ControlPanel(QWidget):
         
         alpha_input_layout = QHBoxLayout()
         alpha_input_layout.addWidget(QLabel("Alpha"))
-        alpha_input = QLineEdit("0")
+        alpha_input = QLineEdit("0.1")
         alpha_input.setObjectName("Alpha")
         alpha_input.setValidator(QDoubleValidator(-maxInputValue, maxInputValue, 2))
         alpha_input.textChanged.connect(lambda: check_value(alpha_input))
@@ -500,7 +502,7 @@ class ControlPanel(QWidget):
         
         nu_input_layout = QHBoxLayout()
         nu_input_layout.addWidget(QLabel("Nu"))
-        nu_input = QLineEdit("0")
+        nu_input = QLineEdit("1.5e-5")
         nu_input.setObjectName("Nu")
         nu_input.setValidator(QDoubleValidator(-maxInputValue, maxInputValue, 2))
         nu_input.textChanged.connect(lambda: check_value(nu_input))
@@ -509,7 +511,7 @@ class ControlPanel(QWidget):
         
         gamma_input_layout = QHBoxLayout()
         gamma_input_layout.addWidget(QLabel("Gamma"))
-        gamma_input = QLineEdit("0")
+        gamma_input = QLineEdit("2000")
         gamma_input.setObjectName("Gamma")
         gamma_input.setValidator(QDoubleValidator(-maxInputValue, maxInputValue, 2))
         gamma_input.textChanged.connect(lambda: check_value(gamma_input))
@@ -600,6 +602,9 @@ class MainWindow(QMainWindow):
                                 user_data_settings["alpha"],
                                 user_data_settings["nu"],
                                 user_data_settings["gamma"])
+        self.sim_tab.tornado = self.tornado
+        self.plot_tab.tornado = self.tornado
+        self.plot_tab_acc.tornado = self.tornado
     
     def on_tab_changed(self):
         tabText = self.tabs.tabText(self.tabs.currentIndex())

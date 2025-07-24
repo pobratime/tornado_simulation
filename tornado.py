@@ -1,6 +1,6 @@
 import sys
 import numpy as np
-from PyQt5.QtWidgets import QApplication, QMainWindow, QTabWidget, QWidget, QVBoxLayout, QGridLayout, QPushButton, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QListWidget
+from PyQt5.QtWidgets import QApplication, QMainWindow, QTabWidget, QWidget, QVBoxLayout, QGridLayout, QPushButton, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QListWidget, QComboBox
 from PyQt5.QtCore import QTimer, pyqtSignal
 from pyvistaqt import QtInteractor
 import pyqtgraph.opengl as gl
@@ -12,10 +12,10 @@ import burger_vortex as bv
 show_liutex_tab = False
 liutex_settings_selected = None
 liutex_settings = {
-    "Low": (5, 25),
-    "Medium": (5, 100),
-    "High": (10, 100),
-    "Very High": (10, 1000)
+    "Low": (4, 25),
+    "Medium": (4, 100),
+    "High": (4, 500),
+    "Very High": (4, 1000)
 }
 
 class Sphere():
@@ -38,8 +38,8 @@ class Sphere():
         self.position = np.array([0, 3, 30.0], dtype=float)
         self.velocity = np.array([0, 0, 0], dtype=float)
         self.acceleration = np.array([0, 0, 0], dtype=float)
-        self.mass = 20
-        self.radius = 3
+        self.mass = 10
+        self.radius = 1
         self.diameter = 2 * self.radius
         
 class Tornado():
@@ -72,13 +72,10 @@ class Tornado():
         self.gamma = 0
         self.alpha = 0
         
+        self.bvortex = bv.BurgersVortex()
+        
         self.inflow_angle = np.deg2rad(0)
         self.K = 0.5
-
-    def is_inside_tornado(self):
-        x, y, _ = self.projectile.position
-        r = np.sqrt(x**2 + y**2)
-        return r <= self.radius
 
     def calculate_magnus_effect(self):
         """
@@ -124,27 +121,7 @@ class Tornado():
         PROVERITI OVO I NAMESTITI OSTATAK
         """
         x, y, z = self.projectile.position
-        r = np.sqrt(x**2 + y**2)
-
-        alpha = 0.1 
-        nu = 1.5e-5       
-        Gamma = 2000     
-
-        if r < 1e-10:
-            r = 1e-10
-
-        v_r = -alpha * r                 
-        v_z = 2 * alpha * z             
-        Re_local = alpha * r**2 / (2 * nu)
-        v_theta = (Gamma / (2 * np.pi * r)) * (1 - np.exp(-Re_local))
-
-        velocity = np.array([
-            v_r * x/r - v_theta * y/r,  
-            v_r * y/r + v_theta * x/r,  
-            v_z                        
-        ])
-        
-        return velocity
+        return self.bvortex.velocity(x, y, z)
          
     def calulate_acceleration(self):
         """
@@ -208,7 +185,7 @@ class KinematicSimulationTab(QWidget):
         self.particle_lifetime = 0.0
         
         self.positions = self.initialize_particles()
-        self.particle_ages = np.zeros(self.number_of_particles)  # Track age of each particle
+        self.particle_ages = np.zeros(self.number_of_particles)  
         self.max_age = 15.0
         
         self.vortex = bv.BurgersVortex()
@@ -233,7 +210,6 @@ class KinematicSimulationTab(QWidget):
         return positions
     
     def spawn_new_particle(self, index):
-        """Spawn a new particle at the outer edge"""
         radius = np.random.uniform(self.spawn_radius * 0.9, self.spawn_radius)
         angle = np.random.uniform(0, 2 * np.pi)
         height = np.random.uniform(-1.0, 1.0)
@@ -288,47 +264,157 @@ class LiutexTab(QWidget):
         self.max_x_value = max_x_value
         self.num_of_points = num_of_points
 
+        # Add method selection
+        method_layout = QHBoxLayout()
+        method_layout.addWidget(QLabel("Coloring Method:"))
+        self.method_combo = QComboBox()
+        self.method_combo.addItems(["Q", "delta", "lambda_ci", "lambda_2", "liutex", "velocity_magnitude"])
+        self.method_combo.setCurrentText("Q")
+        self.method_combo.currentTextChanged.connect(self.update_visualization)
+        method_layout.addWidget(self.method_combo)
+        
+        refresh_button = QPushButton("Refresh")
+        refresh_button.clicked.connect(self.update_visualization)
+        method_layout.addWidget(refresh_button)
+        
+        layout.addLayout(method_layout)
+
         self.plotter = QtInteractor(self)
         layout.addWidget(self.plotter.interactor)
 
         self.bv = bv.BurgersVortex()
 
         self.compute_and_plot_streamlines()
+        
+    def update_visualization(self):
+        self.plotter.clear()
+        self.compute_and_plot_streamlines()
 
     def compute_and_plot_streamlines(self):
-        x = np.linspace(-self.max_x_value, self.max_x_value, self.num_of_points)
-        y = np.linspace(-self.max_x_value, self.max_x_value, self.num_of_points)
-        z = np.linspace(-self.max_x_value, self.max_x_value, self.num_of_points)
+        # Use smaller range for better visualization of vortex structures
+        max_range = min(2.0, self.max_x_value)  # Limit to 2.0 for better vortex capture
+        
+        # Get selected method
+        method = self.method_combo.currentText() if hasattr(self, 'method_combo') else "Q"
+        
+        # Create a finer grid for better resolution
+        num_points = max(self.num_of_points, 30)  # Ensure minimum resolution
+        x = np.linspace(-max_range, max_range, num_points)
+        y = np.linspace(-max_range, max_range, num_points)
+        z = np.linspace(-max_range, max_range, num_points)
         X, Y, Z = np.meshgrid(x, y, z, indexing='ij')
 
         vectors = np.zeros((X.size, 3))
-        liutex = np.zeros(X.size)
+        scalars = np.zeros(X.size)
 
+        # Compute vectors and scalars for the grid
         for i in range(X.size):
             xi, yi, zi = X.flat[i], Y.flat[i], Z.flat[i]
-            vectors[i] = self.bv.velocity(X.flat[i], Y.flat[i], Z.flat[i])
-            liutex[i] = self.bv.calculate_liutex_magnitude2(xi, yi, zi)
+            vectors[i] = self.bv.velocity2(xi, yi, zi)
+            scalars[i] = self.bv.return_coloring(xi, yi, zi, method)
 
-        liutex_min = np.min(liutex)
-        liutex_max = np.max(liutex)
-        if liutex_max > liutex_min:
-            liutex_normalized = (liutex - liutex_min) / (liutex_max - liutex_min)
-        else:
-            liutex_normalized = liutex  
-        
+        # Create the grid
         grid = pv.StructuredGrid()
         grid.points = np.c_[X.ravel(), Y.ravel(), Z.ravel()]
         grid.dimensions = X.shape
         grid['vectors'] = vectors
-        grid['liutex'] = liutex_normalized
+        grid[method] = scalars
         
-        stream = grid.streamlines('vectors', source_center=(0, 0, 0), n_points=500)
-
-        tubes = stream.tube(radius=0.005)
-
-        self.plotter.add_mesh(tubes, scalars='liutex', cmap='coolwarm')
+        # Create multiple streamlines from different starting points around the vortex
+        start_points = []
+        # Create a circle of starting points at different radii and heights
+        for radius in [0.5, 1.0, 1.5]:
+            for angle in np.linspace(0, 2*np.pi, 8):
+                for height in [-0.5, 0.0, 0.5]:
+                    x_start = radius * np.cos(angle)
+                    y_start = radius * np.sin(angle)
+                    start_points.append([x_start, y_start, height])
+        
+        start_points = np.array(start_points)
+        
+        try:
+            # Create streamlines with custom starting points
+            streams = grid.streamlines_from_source(
+                source=pv.PolyData(start_points),
+                vectors='vectors',
+                max_steps=500,
+                integration_direction='forward'
+            )
+            
+            if streams.n_points > 0:
+                # Compute scalars along the streamlines
+                stream_scalars = np.zeros(streams.n_points)
+                points = streams.points
+                
+                for i, point in enumerate(points):
+                    x, y, z = point
+                    stream_scalars[i] = self.bv.return_coloring(x, y, z, method)
+                
+                # Normalize for better color distribution
+                if len(stream_scalars) > 0:
+                    finite_values = stream_scalars[np.isfinite(stream_scalars)]
+                    if len(finite_values) > 0:
+                        p5 = np.percentile(finite_values, 5)
+                        p95 = np.percentile(finite_values, 95)
+                        stream_scalars = np.clip(stream_scalars, p5, p95)
+                        if p95 > p5:
+                            stream_scalars = (stream_scalars - p5) / (p95 - p5)
+                
+                streams[method + '_normalized'] = stream_scalars
+                
+                # Create tubes from streamlines
+                tubes = streams.tube(radius=0.02)
+                
+                # Add to plotter
+                self.plotter.add_mesh(
+                    tubes, 
+                    scalars=method + '_normalized',
+                    cmap='plasma',
+                    show_scalar_bar=True,
+                    scalar_bar_args={'title': f'{method} Criterion'}
+                )
+            else:
+                # Fallback: show grid points
+                finite_mask = np.isfinite(scalars)
+                if np.any(finite_mask):
+                    finite_scalars = scalars[finite_mask]
+                    p5 = np.percentile(finite_scalars, 5)
+                    p95 = np.percentile(finite_scalars, 95)
+                    scalars_norm = np.clip(scalars, p5, p95)
+                    if p95 > p5:
+                        scalars_norm = (scalars_norm - p5) / (p95 - p5)
+                    grid[method + '_normalized'] = scalars_norm
+                    self.plotter.add_mesh(
+                        grid, 
+                        scalars=method + '_normalized',
+                        cmap='plasma',
+                        show_scalar_bar=True,
+                        style='points',
+                        point_size=5
+                    )
+                
+        except Exception as e:
+            print(f"Streamline error: {e}")
+            # Fallback: show just the grid points with computed scalars
+            finite_mask = np.isfinite(scalars)
+            if np.any(finite_mask):
+                finite_scalars = scalars[finite_mask]
+                p5 = np.percentile(finite_scalars, 5)
+                p95 = np.percentile(finite_scalars, 95)
+                scalars_norm = np.clip(scalars, p5, p95)
+                if p95 > p5:
+                    scalars_norm = (scalars_norm - p5) / (p95 - p5)
+                grid[method + '_normalized'] = scalars_norm
+                self.plotter.add_mesh(
+                    grid, 
+                    scalars=method + '_normalized',
+                    cmap='plasma',
+                    show_scalar_bar=True,
+                    style='points',
+                    point_size=3
+                )
+        
         self.plotter.reset_camera()
-
 
 class TornadoSimulationTab(QWidget):
     def __init__(self, tornado):
@@ -545,7 +631,7 @@ class MainWindow(QMainWindow):
         self.plot_tab_acc.tornado = self.tornado
 
     def update_all(self):
-        if self.tornado.projectile.position[2] > 0:
+        if self.tornado.projectile.position[2] > 0 or self.tornado.projectile.position[2] < 500:
             delta_time = 0.01
             self.sim_tab.update_simulation(delta_time)
             self.time += delta_time

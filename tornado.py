@@ -1,7 +1,8 @@
 import sys
 import numpy as np
 from PyQt5.QtWidgets import QApplication, QMainWindow, QTabWidget, QWidget, QVBoxLayout, QGridLayout, QPushButton, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QListWidget, QComboBox
-from PyQt5.QtCore import QTimer, pyqtSignal
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QSlider, QSpinBox
+from PyQt5.QtCore import QTimer, pyqtSignal, Qt
 from PyQt5.QtGui import QDoubleValidator
 from pyvistaqt import QtInteractor
 import pyqtgraph.opengl as gl
@@ -198,9 +199,173 @@ SVE STO SE NALAZI ISPOD OVE LINIJE JE KOD TEHNICKE PRIRODE KOJI SE KORISTI ZA PR
 ==============================================================================================================================================================================
 """
 
-class KinematicSimulationTab(QWidget):
+class particleSimulationTab(QWidget):
     def __init__(self):
         super().__init__()
+        layout = QVBoxLayout(self)
+        self.setLayout(layout)
+        
+        controls_layout = QHBoxLayout()
+        
+        self.add_particles_btn = QPushButton("Add Particles")
+        self.add_particles_btn.clicked.connect(self.add_random_particles)
+        controls_layout.addWidget(self.add_particles_btn)
+        
+        self.clear_particles_btn = QPushButton("Clear Particles")
+        self.clear_particles_btn.clicked.connect(self.clear_particles)
+        controls_layout.addWidget(self.clear_particles_btn)
+        
+        controls_layout.addWidget(QLabel("Particle Count:"))
+        self.particle_count_spin = QSpinBox()
+        self.particle_count_spin.setRange(10, 500)
+        self.particle_count_spin.setValue(50)
+        controls_layout.addWidget(self.particle_count_spin)
+        
+        controls_layout.addWidget(QLabel("Speed Factor:"))
+        self.speed_slider = QSlider(Qt.Horizontal)
+        self.speed_slider.setRange(10, 200)
+        self.speed_slider.setValue(100)
+        controls_layout.addWidget(self.speed_slider)
+        
+        layout.addLayout(controls_layout)
+        
+        self.plotter = QtInteractor(self)
+        self.plotter.reset_camera_clipping_range_mode = 'never'
+        layout.addWidget(self.plotter.interactor)
+        
+        self.initialize()
+        
+    def initialize(self):
+        from burger_vortex import BurgersVortex
+        self.bv = BurgersVortex()
+        
+        self.plotter.add_axes()
+        self.plotter.view_isometric()
+        self.plotter.camera_position = [(15, 15, 15), (0, 0, 0), (0, 0, 1)]
+        self.plotter.reset_camera()
+        self.original_camera_position = self.plotter.camera_position
+        
+        self.particles = None
+        self.particle_positions = np.empty((0, 3))
+        self.particle_colors = np.empty((0, 4))
+        self.particle_mesh = None
+        
+        self.add_random_particles()
+    
+    def add_random_particles(self):
+        count = self.particle_count_spin.value()
+        
+        new_positions = []
+        for _ in range(count):
+            r = 1.0 + 2.0 * np.random.random()
+            theta = 2 * np.pi * np.random.random()
+            phi = np.pi * np.random.random()
+            
+            x = r * np.sin(phi) * np.cos(theta)
+            y = r * np.sin(phi) * np.sin(theta)
+            z = r * np.cos(phi) * 2
+            
+            new_positions.append([x, y, z])
+        
+        new_positions = np.array(new_positions)
+        if self.particle_positions.size == 0:
+            self.particle_positions = new_positions
+        else:
+            self.particle_positions = np.vstack([self.particle_positions, new_positions])
+        
+        radii = np.linalg.norm(new_positions, axis=1)
+        norm_radii = (radii - np.min(radii)) / (np.max(radii) - np.min(radii) + 1e-10)
+        
+        new_colors = np.zeros((len(new_positions), 4))
+        new_colors[:, 0] = norm_radii
+        new_colors[:, 2] = 1 - norm_radii
+        new_colors[:, 1] = 0.2 * np.ones_like(norm_radii)
+        new_colors[:, 3] = 0.8 * np.ones_like(norm_radii)
+        
+        if self.particle_colors.size == 0:
+            self.particle_colors = new_colors
+        else:
+            self.particle_colors = np.vstack([self.particle_colors, new_colors])
+        
+        self._update_particle_mesh()
+    
+    def clear_particles(self):
+        self.particle_positions = np.empty((0, 3))
+        self.particle_colors = np.empty((0, 4))
+        if self.particle_mesh:
+            self.plotter.remove_actor(self.particle_mesh, render=False)
+            self.particle_mesh = None
+        self.plotter.render()
+    
+    def _update_particle_mesh(self):
+        if self.particle_positions.size == 0:
+            return
+            
+        current_camera = self.plotter.camera_position
+            
+        point_cloud = pv.PolyData(self.particle_positions)
+        point_cloud['colors'] = self.particle_colors * 255
+        
+        if self.particle_mesh:
+            self.plotter.remove_actor(self.particle_mesh, render=False)
+        
+        self.particle_mesh = self.plotter.add_mesh(
+            point_cloud,
+            render_points_as_spheres=True,
+            point_size=10,
+            rgb=True,
+            scalars='colors',
+            reset_camera=False,
+            render=False
+        )
+        
+        self.plotter.camera_position = current_camera
+        self.plotter.render()
+    
+    def update_kinematic(self, time_elapsed):
+        if self.particle_positions.size == 0:
+            return
+            
+        speed_factor = self.speed_slider.value() / 100.0
+        delta_t = 0.05 * speed_factor
+        
+        for i in range(len(self.particle_positions)):
+            pos = self.particle_positions[i]
+            velocity = self.bv.velocity2(pos[0], pos[1], pos[2])
+            self.particle_positions[i] += velocity * delta_t
+        
+        distances = np.linalg.norm(self.particle_positions, axis=1)
+        mask = distances < 10.0
+        
+        if not np.all(mask):
+            self.particle_positions = self.particle_positions[mask]
+            self.particle_colors = self.particle_colors[mask]
+            
+            particles_to_add = np.sum(~mask)
+            if particles_to_add > 0:
+                new_positions = []
+                for _ in range(particles_to_add):
+                    r = 3.0
+                    theta = 2 * np.pi * np.random.random()
+                    z = 4.0 * (np.random.random() - 0.5)
+                    
+                    x = r * np.cos(theta)
+                    y = r * np.sin(theta)
+                    
+                    new_positions.append([x, y, z])
+                
+                new_positions = np.array(new_positions)
+                self.particle_positions = np.vstack([self.particle_positions, new_positions])
+                
+                new_colors = np.zeros((particles_to_add, 4))
+                new_colors[:, 0] = 0.8
+                new_colors[:, 1] = 0.2
+                new_colors[:, 2] = 0.2
+                new_colors[:, 3] = 0.8
+                
+                self.particle_colors = np.vstack([self.particle_colors, new_colors])
+        
+        self._update_particle_mesh()
 
 class LiutexTab(QWidget):
     def __init__(self, max_x_value, num_of_points):
@@ -226,6 +391,8 @@ class LiutexTab(QWidget):
         layout.addLayout(method_layout)
 
         self.plotter = QtInteractor(self)
+        self.plotter.add_axes()
+        self.plotter.view_isometric()
         
         layout.addWidget(self.plotter.interactor)
 
@@ -538,7 +705,7 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         main_layout.addWidget(self.tabs)
 
-        self.kinematic_tab = KinematicSimulationTab()
+        self.kinematic_tab = particleSimulationTab()
         self.sim_tab = TornadoSimulationTab(self.tornado)
         self.plot_tab = PlottingTab(self.tornado, ["vx", "vy", "vz"], lambda: self.tornado.projectile.velocity)
         self.plot_tab_acc = PlottingTab(self.tornado, ["ax", "ay", "az"], lambda: self.tornado.projectile.acceleration)
@@ -548,10 +715,10 @@ class MainWindow(QMainWindow):
             self.liutex_tab = LiutexTab(liutex_settings[liutex_settings_selected][0], liutex_settings[liutex_settings_selected][1])
 
         self.tabs.addTab(self.sim_tab, "Tornado Simulation")
-        self.tabs.addTab(self.kinematic_tab, "KinematicTab")
         self.tabs.addTab(self.plot_tab, "Tornado Plotting Vel")
         self.tabs.addTab(self.plot_tab_acc, "Tornado Plotting Acc")
-
+        self.tabs.addTab(self.kinematic_tab, "Particle Tab")
+        
         if show_liutex_tab:
             self.tabs.addTab(self.liutex_tab, "3d Mesh")
 

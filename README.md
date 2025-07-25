@@ -1,8 +1,5 @@
 # Tornado simulator
 
-# How to set up and run
-If you are using PyCharm the dependencies should set up by themselves, and you should be able to run the code out of the box
-
 ## Linux and Macos
 1. Adding permission to .sh file to create venv
     ```bash
@@ -22,14 +19,5 @@ If you are using PyCharm the dependencies should set up by themselves, and you s
     ```
 
 ## Windows
-1. Create venv
-   ```bat
-   call setup.bat
-   ```
-2. Execute inside of venv
-   ```bat
-   python3 tornado.py
-   ```
-3. Deactivating venv
-   ```bat
-   deactivate
+Just download the release and run .exe file.
+You can also build from source by creating a virtual env and installing packages from requierments.txt.

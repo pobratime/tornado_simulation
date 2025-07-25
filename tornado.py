@@ -67,10 +67,9 @@ class Tornado():
         radius -> poluprecnik tornada
         diameter -> precnik tornada
         gravity -> gravitaciona konstana 9.81 kao 3d vektor zarad racunanja
-        max_speed_horizontal -> maksimalna brzina vetra po horizontali
-        max_speed_vertical -> maksimalna brzina vetra po vertikali
-        inflow_angle ->
-        K ->
+        alpha -> strain reate - brzina kojom se fluid kompresuje
+        gamma -> cirkuluacija
+        nu -> kinematicka viskoznost fluida
         """
         
         self.projectile = Sphere(position, velocity, mass, radius)
@@ -78,28 +77,16 @@ class Tornado():
         self.diameter = 2 * self.radius
         self.rho = 1.293
         self.gravity = np.array([0, 0, -9.81], dtype=float) # -9.81 m/s !
-        self.max_speed_horizontal = 150 
-        self.max_speed_vertical = 150
         
         self.alpha = alpha
         self.nu = nu
         self.gamma = gamma
         
         self.bvortex = bv.BurgersVortex(self.alpha, self.gamma, self.nu)
-        
-        self.inflow_angle = np.deg2rad(0)
-        self.K = 0.5
 
     def calculate_magnus_effect(self):
         """
         MAGNUS EFFECT
-        
-        Returns the Magnus force as a vector.
-        
-        Uses:
-        - Cross product of angular velocity and relative velocity
-        - Sphere's radius and air density
-        - Magnus coefficient (empirical)
         """
         v_rel = self.projectile.velocity - self.calculate_tornado_wind_velocity()
 
@@ -123,7 +110,6 @@ class Tornado():
         d -> precnik projektila
         rho -> gustina vazduha
         Cd -> otpor (0.47 ZA SFERU!)
-        D 
         Racunanje:
         
         """
@@ -142,8 +128,6 @@ class Tornado():
     def calculate_tornado_wind_velocity(self):
         """
         BURGER-ROTT VERTEX MODEL
-        TODO
-        PROVERITI OVO I NAMESTITI OSTATAK
         """
         x, y, z = self.projectile.position
         return self.bvortex.velocity(x, y, z)
@@ -167,23 +151,6 @@ class Tornado():
         a = (D+M) / m + g
         
         return a
-    
-    def calculate_core_radius(self):
-        """
-        RACUNANJE CENTRA TORNADA
-        
-        Parametri:
-        
-        Racuanje:
-        
-        """
-        sin2_theta = np.sin(self.inflow_angle)**2
-        r_outer = self.radius
-        numerator = r_outer * sin2_theta
-        denominator = 1 - self.K * sin2_theta
-        r_inner = numerator / denominator
-        
-        return r_inner
     
     def update_projectile(self, delta_time):
         """

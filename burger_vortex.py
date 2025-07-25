@@ -1,11 +1,11 @@
 import numpy as np
 
 class BurgersVortex():
-    def __init__(self):
+    def __init__(self, alpha=0.4, Gamma=2000, nu=1.5e-6):
       # ovo su velicine za veliku skalu
-      self.alpha = 0.4 # Strain rate
-      self.Gamma = 2000 # Circulation
-      self.nu = 1.5e-6 # Kinematic viscosity
+      self.alpha = alpha # Strain rate
+      self.Gamma = Gamma # Circulation
+      self.nu = nu # Kinematic viscosity
       
       # ovo su velicine za idealnu skalu na fludinom nivou
       self.alpha2 = 0.043

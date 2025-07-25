@@ -2,12 +2,14 @@ import sys
 import numpy as np
 from PyQt5.QtWidgets import QApplication, QMainWindow, QTabWidget, QWidget, QVBoxLayout, QGridLayout, QPushButton, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QListWidget, QComboBox
 from PyQt5.QtCore import QTimer, pyqtSignal
+from PyQt5.QtGui import QDoubleValidator
 from pyvistaqt import QtInteractor
 import pyqtgraph.opengl as gl
 import pyqtgraph as pq
 import pyvista as pv
 from tqdm import tqdm
 import burger_vortex as bv
+import math
 
 show_liutex_tab = False
 liutex_settings_selected = None
@@ -18,9 +20,19 @@ liutex_settings = {
     "Very High": (4, 1000)
 }
 
+user_data_settings = {
+    "position": [0.0, 3.0, 30.0],
+    "velocity": [0.0, 0.0, 0.0],
+    "mass": 20.0,
+    "radius": 3.0,
+    "alpha": 0.1,
+    "nu": 1.5e-5,
+    "gamma": 2000
+}
+
 class Sphere():
     
-    def __init__(self):
+    def __init__(self, position=[0, 3, 30.0], velocity=[0, 0, 0], mass=20, radius=3):
         """
         OSNOVNI PODACI O PROJEKTILU
         
@@ -35,15 +47,15 @@ class Sphere():
         diameter -> precnik objekta
         """
         
-        self.position = np.array([0, 3, 30.0], dtype=float)
-        self.velocity = np.array([0, 0, 0], dtype=float)
+        self.position = np.array(position, dtype=float)
+        self.velocity = np.array(velocity, dtype=float)
         self.acceleration = np.array([0, 0, 0], dtype=float)
-        self.mass = 10
-        self.radius = 1
+        self.mass = mass
+        self.radius = radius
         self.diameter = 2 * self.radius
         
 class Tornado():
-    def __init__(self):
+    def __init__(self, position=[0, 3, 30.0], velocity=[0, 0, 0], mass=20, radius=3, alpha = 0.1, nu = 1.5e-5, gamma = 2000):
         """
         OSNOVNI PODACI O TORNADU
         
@@ -60,7 +72,7 @@ class Tornado():
         K ->
         """
         
-        self.projectile = Sphere()
+        self.projectile = Sphere(position, velocity, mass, radius)
         self.radius = 10
         self.diameter = 2 * self.radius
         self.rho = 1.293
@@ -68,11 +80,11 @@ class Tornado():
         self.max_speed_horizontal = 150 
         self.max_speed_vertical = 150
         
-        self.nu = 0
-        self.gamma = 0
-        self.alpha = 0
+        self.alpha = alpha
+        self.nu = nu
+        self.gamma = gamma
         
-        self.bvortex = bv.BurgersVortex()
+        self.bvortex = bv.BurgersVortex(self.alpha, self.gamma, self.nu)
         
         self.inflow_angle = np.deg2rad(0)
         self.K = 0.5
@@ -236,7 +248,7 @@ class KinematicSimulationTab(QWidget):
         for i in range(self.number_of_particles):
             self.particle_ages[i] += delta_time
             
-            vel = self.vortex.velocity(*self.positions[i])
+            vel = self.vortex.velocity2(*self.positions[i])
             self.positions[i] += vel * delta_time
             
             r = np.linalg.norm(self.positions[i][:2])
@@ -505,20 +517,43 @@ class ControlPanel(QWidget):
         super().__init__()
         layout = QHBoxLayout(self)
         self.tornado = tornado
+
+        maxInputValue = 10000.00
+
+        def sign(value):
+            return (value > 0) - (value < 0)
+
+        def is_float(value):
+            try:
+                float(value)
+                return True
+            except ValueError:
+                return False
+
+        def check_value(obj):
+            text = obj.text()
+            if text and is_float(text):
+                value = float(text)
+                if abs(value) > maxInputValue:
+                    obj.setText(f"{sign(value) * maxInputValue:.2f}")
         
         projectile_layout = QVBoxLayout()
         projectile_layout.addWidget(QLabel("Projectile details"))
         
         pos_input = QHBoxLayout()
         pos_input.addWidget(QLabel("Projectile starting postition (x, y, z)"))
+        positionVec = [0.0, 3.0, 30.0]
         for i in range(3):
-            le = QLineEdit("0")
+            le = QLineEdit(str(positionVec[i]))
+            le.textChanged.connect(lambda _t, w=le: check_value(w))
             pos_input.addWidget(le)
             
         vel_input = QHBoxLayout()
         vel_input.addWidget(QLabel("Projectile starting velocity (x, y, z)"))
+        velosityVec = [0.0, 0.0, 0.0]
         for i in range(3):
-            le = QLineEdit("0")
+            le = QLineEdit(str(velosityVec[i]))
+            le.textChanged.connect(lambda _t, w=le: check_value(w))
             vel_input.addWidget(le)
             
         projectile_layout.addLayout(pos_input)
@@ -526,12 +561,18 @@ class ControlPanel(QWidget):
         
         mass_input_layout = QHBoxLayout()
         mass_input_layout.addWidget(QLabel("Projectile mass in kg"))
-        mass_input = QLineEdit("0")
+        mass_input = QLineEdit("20.0")
+        mass_input.setObjectName("mass")
+        mass_input.setValidator(QDoubleValidator(-maxInputValue, maxInputValue, 2))
+        mass_input.textChanged.connect(lambda: check_value(mass_input))
         mass_input_layout.addWidget(mass_input)
        
         radius_input_layout = QHBoxLayout()
         radius_input_layout.addWidget(QLabel("Projectile radius in m"))
-        radius_input = QLineEdit("0")
+        radius_input = QLineEdit("3.0")
+        radius_input.setObjectName("radius")
+        radius_input.setValidator(QDoubleValidator(-maxInputValue, maxInputValue, 2))
+        radius_input.textChanged.connect(lambda: check_value(radius_input))
         radius_input_layout.addWidget(radius_input)
         
         projectile_layout.addLayout(mass_input_layout)
@@ -542,28 +583,30 @@ class ControlPanel(QWidget):
         
         alpha_input_layout = QHBoxLayout()
         alpha_input_layout.addWidget(QLabel("Alpha"))
-        alpha_input = QLineEdit("0")
+        alpha_input = QLineEdit("0.1")
+        alpha_input.setObjectName("Alpha")
+        alpha_input.setValidator(QDoubleValidator(-maxInputValue, maxInputValue, 2))
+        alpha_input.textChanged.connect(lambda: check_value(alpha_input))
         alpha_input_layout.addWidget(alpha_input) 
         tornado_layout.addLayout(alpha_input_layout)
         
         nu_input_layout = QHBoxLayout()
-        nu_input_layout.addWidget(QLabel("Gamma"))
-        nu_input = QLineEdit("0")
+        nu_input_layout.addWidget(QLabel("Nu"))
+        nu_input = QLineEdit("1.5e-5")
+        nu_input.setObjectName("Nu")
+        nu_input.setValidator(QDoubleValidator(-maxInputValue, maxInputValue, 2))
+        nu_input.textChanged.connect(lambda: check_value(nu_input))
         nu_input_layout.addWidget(nu_input)
         tornado_layout.addLayout(nu_input_layout)
         
         gamma_input_layout = QHBoxLayout()
         gamma_input_layout.addWidget(QLabel("Gamma"))
-        gamma_input = QLineEdit("0")
+        gamma_input = QLineEdit("2000")
+        gamma_input.setObjectName("Gamma")
+        gamma_input.setValidator(QDoubleValidator(-maxInputValue, maxInputValue, 2))
+        gamma_input.textChanged.connect(lambda: check_value(gamma_input))
         gamma_input_layout.addWidget(gamma_input)
         tornado_layout.addLayout(gamma_input_layout)
-        
-        inflow_angle_input_layout = QHBoxLayout()
-        inflow_angle_input_layout.addWidget(QLabel("Inflow angle"))
-        inflow_angle_input = QLineEdit("BROKEN")
-        inflow_angle_input_layout.addWidget(inflow_angle_input)
-        tornado_layout.addLayout(inflow_angle_input_layout)
-       
         
         self.launch_button = QPushButton("Launch Projectile")
         self.launch_button.clicked.connect(self.launch_projectile)
@@ -573,6 +616,8 @@ class ControlPanel(QWidget):
         layout.addWidget(self.launch_button)
 
     def launch_projectile(self):
+        global user_data_settings
+
         mainWindow = self.parent()
         while mainWindow and not isinstance(mainWindow, QMainWindow):
             mainWindow = mainWindow.parent()
@@ -581,6 +626,18 @@ class ControlPanel(QWidget):
             return
             
         mainWindow.stop_update()
+        user_data_settings = {
+            "position": [float(x.text()) for x in self.findChildren(QLineEdit)[:3]],
+            "velocity": [float(x.text()) for x in self.findChildren(QLineEdit)[3:6]],
+            "mass": float(self.findChild(QLineEdit, "mass").text()),
+            "radius": float(self.findChild(QLineEdit, "radius").text()),
+            "alpha": float(self.findChild(QLineEdit, "Alpha").text()),
+            "nu": float(self.findChild(QLineEdit, "Nu").text()),
+            "gamma": float(self.findChild(QLineEdit, "Gamma").text())
+        }
+
+        print(user_data_settings)
+        mainWindow.update_user_data_settings()
         
         if not hasattr(mainWindow, 'timer'):
             mainWindow.timer = QTimer()
@@ -619,10 +676,32 @@ class MainWindow(QMainWindow):
         if show_liutex_tab:
             self.tabs.addTab(self.liutex_tab, "Liutex")
 
+        self.tabs.currentChanged.connect(self.on_tab_changed)
+
         self.control_panel = ControlPanel(self.tornado)
         main_layout.addWidget(self.control_panel)
         
         self.setCentralWidget(main_widget)
+    
+    def update_user_data_settings(self):
+        global user_data_settings
+        self.tornado = Tornado(user_data_settings["position"],
+                                user_data_settings["velocity"],
+                                user_data_settings["mass"],
+                                user_data_settings["radius"],
+                                user_data_settings["alpha"],
+                                user_data_settings["nu"],
+                                user_data_settings["gamma"])
+        self.sim_tab.tornado = self.tornado
+        self.plot_tab.tornado = self.tornado
+        self.plot_tab_acc.tornado = self.tornado
+    
+    def on_tab_changed(self):
+        tabText = self.tabs.tabText(self.tabs.currentIndex())
+        if tabText == "Liutex":
+            self.control_panel.setVisible(False)
+        else:
+            self.control_panel.setVisible(True)
     
     def update_tornado(self):
         self.tornado = Tornado()
@@ -631,14 +710,13 @@ class MainWindow(QMainWindow):
         self.plot_tab_acc.tornado = self.tornado
 
     def update_all(self):
-        if self.tornado.projectile.position[2] > 0 or self.tornado.projectile.position[2] < 500:
+        if self.tornado.projectile.position[2] > 0 and self.tornado.projectile.position[2] < 500:
             delta_time = 0.01
             self.sim_tab.update_simulation(delta_time)
             self.time += delta_time
             self.plot_tab.update_plots(self.time)
             self.plot_tab_acc.update_plots(self.time)
             self.kinematic_tab.update_kinematic(self.time)
-            
         else:
             self.timer.stop()
     

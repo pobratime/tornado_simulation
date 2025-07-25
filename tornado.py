@@ -645,6 +645,12 @@ class ControlPanel(QWidget):
             mainWindow.timer.start(16)
             mainWindow.time = 0.0
 
+        if not hasattr(mainWindow, 'kinematic_timer'):
+            mainWindow.kinematic_timer = QTimer()
+            mainWindow.kinematic_timer.timeout.connect(mainWindow.update_kinematic)
+            mainWindow.kinematic_timer.start(16)
+            mainWindow.kinematicTime = 0.0
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -716,7 +722,6 @@ class MainWindow(QMainWindow):
             self.time += delta_time
             self.plot_tab.update_plots(self.time)
             self.plot_tab_acc.update_plots(self.time)
-            self.kinematic_tab.update_kinematic(self.time)
         else:
             self.timer.stop()
     
@@ -725,6 +730,11 @@ class MainWindow(QMainWindow):
             self.timer.stop()
             self.timer.deleteLater()
             del self.timer
+
+        if hasattr(self, 'kinematic_timer'):
+            self.kinematic_timer.stop()
+            self.kinematic_timer.deleteLater()
+            del self.kinematic_timer
 
         self.time = 0.0
         self.sim_tab.positions = []
@@ -743,6 +753,11 @@ class MainWindow(QMainWindow):
         self.plot_tab_acc.data_series_magnitude = []
         for curve in self.plot_tab_acc.curves:
             curve.setData([], [])
+    
+    def update_kinematic(self):
+        delta_time = 0.01
+        self.kinematicTime += delta_time
+        self.kinematic_tab.update_kinematic(self.kinematicTime)
 
 class PopUpWindow(QMainWindow):
     ok_clicked = pyqtSignal()

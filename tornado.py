@@ -222,7 +222,7 @@ class particleSimulationTab(QWidget):
         controls_layout.addWidget(self.particle_count_spin)
         
         controls_layout.addWidget(QLabel("Speed Factor:"))
-        self.speed_slider = QSlider(Qt.Horizontal)
+        self.speed_slider = QSlider(Qt.Horizontal) # type: ignore
         self.speed_slider.setRange(10, 200)
         self.speed_slider.setValue(100)
         controls_layout.addWidget(self.speed_slider)
@@ -829,7 +829,7 @@ class PopUpWindow(QMainWindow):
     def on_ok_clicked(self):
         global show_liutex_tab, liutex_settings_selected
         show_liutex_tab = self.checkbox.isChecked()
-        liutex_settings_selected = self.listbox.currentItem().text() if self.listbox.currentItem() else None
+        liutex_settings_selected = self.listbox.currentItem().text() if self.listbox.currentItem() else None # type: ignore
         self.close()
         self.ok_clicked.emit()
     

@@ -16,7 +16,7 @@ liutex_settings_selected = None
 liutex_settings = {
     "Low": (4, 25),
     "Medium": (4, 100),
-    "High": (4, 500),
+    "High": (4, 300),
     "Very High": (4, 1000)
 }
 
@@ -93,13 +93,25 @@ class Tornado():
         """
         MAGNUS EFFECT
         
-        Parametri:
+        Returns the Magnus force as a vector.
         
-        Racunanje:
-        
+        Uses:
+        - Cross product of angular velocity and relative velocity
+        - Sphere's radius and air density
+        - Magnus coefficient (empirical)
         """
-        # TOOD
-        return np.array([0, 0, 0])
+        v_rel = self.projectile.velocity - self.calculate_tornado_wind_velocity()
+
+        omega = np.array([0.0, 0.0, 50.0]) 
+
+        C_m = 0.2
+
+        rho = self.rho
+        r = self.projectile.radius
+
+        magnus_force = C_m * rho * r**3 * np.cross(omega, v_rel)
+        
+        return magnus_force
 
     def calculate_air_resistance(self, wind_velocity):
         """
@@ -147,10 +159,11 @@ class Tornado():
         
         wind_velocity = self.calculate_tornado_wind_velocity()
         D = self.calculate_air_resistance(wind_velocity)
+        M = self.calculate_magnus_effect()
         m = self.projectile.mass
         g = self.gravity
 
-        a = D / m + g
+        a = (D+M) / m + g
         
         return a
     
@@ -188,84 +201,6 @@ SVE STO SE NALAZI ISPOD OVE LINIJE JE KOD TEHNICKE PRIRODE KOJI SE KORISTI ZA PR
 class KinematicSimulationTab(QWidget):
     def __init__(self):
         super().__init__()
-        layout = QVBoxLayout(self)
-        self.view = gl.GLViewWidget()
-        self.view.opts['distance'] = 5
-        self.number_of_particles = 500
-        self.max_radius = 2.0
-        self.spawn_radius = 1.8
-        self.particle_lifetime = 0.0
-        
-        self.positions = self.initialize_particles()
-        self.particle_ages = np.zeros(self.number_of_particles)  
-        self.max_age = 15.0
-        
-        self.vortex = bv.BurgersVortex()
-        
-        colors = self.get_particle_colors()
-        self.scatter = gl.GLScatterPlotItem(pos=self.positions, size=4, color=colors, pxMode=True)
-        self.view.addItem(self.scatter)
-        layout.addWidget(self.view)
-    
-    def initialize_particles(self):
-        positions = np.zeros((self.number_of_particles, 3))
-        for i in range(self.number_of_particles):
-            radius = np.random.uniform(0.5, self.spawn_radius)
-            angle = np.random.uniform(0, 2 * np.pi)
-            height = np.random.uniform(-1.0, 1.0)
-            
-            positions[i] = [
-                radius * np.cos(angle),
-                radius * np.sin(angle), 
-                height
-            ]
-        return positions
-    
-    def spawn_new_particle(self, index):
-        radius = np.random.uniform(self.spawn_radius * 0.9, self.spawn_radius)
-        angle = np.random.uniform(0, 2 * np.pi)
-        height = np.random.uniform(-1.0, 1.0)
-        
-        self.positions[index] = [
-            radius * np.cos(angle),
-            radius * np.sin(angle),
-            height
-        ]
-        self.particle_ages[index] = 0.0
-    
-    def get_particle_colors(self):
-        colors = np.zeros((self.number_of_particles, 4))
-        for i in range(self.number_of_particles):
-            age_factor = min(self.particle_ages[i] / self.max_age, 1.0)
-            brightness = 1.0 - age_factor * 0.7
-            
-            colors[i] = [0.2 * brightness, 0.8 * brightness, 1.0 * brightness, 1.0]
-        return colors
-
-    def update_kinematic(self, delta_time):
-        particles_to_respawn = []
-        
-        for i in range(self.number_of_particles):
-            self.particle_ages[i] += delta_time
-            
-            vel = self.vortex.velocity2(*self.positions[i])
-            self.positions[i] += vel * delta_time
-            
-            r = np.linalg.norm(self.positions[i][:2])
-            z = self.positions[i][2]
-            
-            if (r > self.max_radius or 
-                abs(z) > 2.0 or 
-                self.particle_ages[i] > self.max_age or
-                r < 0.05):
-                particles_to_respawn.append(i)
-        
-        for i in particles_to_respawn:
-            self.spawn_new_particle(i)
-        
-        colors = self.get_particle_colors()
-        
-        self.scatter.setData(pos=self.positions, color=colors)
 
 class LiutexTab(QWidget):
     def __init__(self, max_x_value, num_of_points):
@@ -276,7 +211,6 @@ class LiutexTab(QWidget):
         self.max_x_value = max_x_value
         self.num_of_points = num_of_points
 
-        # Add method selection
         method_layout = QHBoxLayout()
         method_layout.addWidget(QLabel("Coloring Method:"))
         self.method_combo = QComboBox()
@@ -292,6 +226,7 @@ class LiutexTab(QWidget):
         layout.addLayout(method_layout)
 
         self.plotter = QtInteractor(self)
+        
         layout.addWidget(self.plotter.interactor)
 
         self.bv = bv.BurgersVortex()
@@ -303,14 +238,11 @@ class LiutexTab(QWidget):
         self.compute_and_plot_streamlines()
 
     def compute_and_plot_streamlines(self):
-        # Use smaller range for better visualization of vortex structures
-        max_range = min(2.0, self.max_x_value)  # Limit to 2.0 for better vortex capture
+        max_range = min(2.0, self.max_x_value)
         
-        # Get selected method
         method = self.method_combo.currentText() if hasattr(self, 'method_combo') else "Q"
         
-        # Create a finer grid for better resolution
-        num_points = max(self.num_of_points, 30)  # Ensure minimum resolution
+        num_points = max(self.num_of_points, 30)
         x = np.linspace(-max_range, max_range, num_points)
         y = np.linspace(-max_range, max_range, num_points)
         z = np.linspace(-max_range, max_range, num_points)
@@ -318,113 +250,54 @@ class LiutexTab(QWidget):
 
         vectors = np.zeros((X.size, 3))
         scalars = np.zeros(X.size)
-
-        # Compute vectors and scalars for the grid
+        
         for i in range(X.size):
             xi, yi, zi = X.flat[i], Y.flat[i], Z.flat[i]
             vectors[i] = self.bv.velocity2(xi, yi, zi)
             scalars[i] = self.bv.return_coloring(xi, yi, zi, method)
 
-        # Create the grid
         grid = pv.StructuredGrid()
         grid.points = np.c_[X.ravel(), Y.ravel(), Z.ravel()]
         grid.dimensions = X.shape
         grid['vectors'] = vectors
         grid[method] = scalars
         
-        # Create multiple streamlines from different starting points around the vortex
         start_points = []
-        # Create a circle of starting points at different radii and heights
         for radius in [0.5, 1.0, 1.5]:
             for angle in np.linspace(0, 2*np.pi, 8):
                 for height in [-0.5, 0.0, 0.5]:
-                    x_start = radius * np.cos(angle)
-                    y_start = radius * np.sin(angle)
-                    start_points.append([x_start, y_start, height])
+                    start_points.append([radius * np.cos(angle), radius * np.sin(angle), height])
         
         start_points = np.array(start_points)
         
-        try:
-            # Create streamlines with custom starting points
-            streams = grid.streamlines_from_source(
-                source=pv.PolyData(start_points),
-                vectors='vectors',
-                max_steps=500,
-                integration_direction='forward'
-            )
-            
-            if streams.n_points > 0:
-                # Compute scalars along the streamlines
-                stream_scalars = np.zeros(streams.n_points)
-                points = streams.points
-                
-                for i, point in enumerate(points):
-                    x, y, z = point
-                    stream_scalars[i] = self.bv.return_coloring(x, y, z, method)
-                
-                # Normalize for better color distribution
-                if len(stream_scalars) > 0:
-                    finite_values = stream_scalars[np.isfinite(stream_scalars)]
-                    if len(finite_values) > 0:
-                        p5 = np.percentile(finite_values, 5)
-                        p95 = np.percentile(finite_values, 95)
-                        stream_scalars = np.clip(stream_scalars, p5, p95)
-                        if p95 > p5:
-                            stream_scalars = (stream_scalars - p5) / (p95 - p5)
-                
-                streams[method + '_normalized'] = stream_scalars
-                
-                # Create tubes from streamlines
-                tubes = streams.tube(radius=0.02)
-                
-                # Add to plotter
-                self.plotter.add_mesh(
-                    tubes, 
-                    scalars=method + '_normalized',
-                    cmap='plasma',
-                    show_scalar_bar=True,
-                    scalar_bar_args={'title': f'{method} Criterion'}
-                )
-            else:
-                # Fallback: show grid points
-                finite_mask = np.isfinite(scalars)
-                if np.any(finite_mask):
-                    finite_scalars = scalars[finite_mask]
-                    p5 = np.percentile(finite_scalars, 5)
-                    p95 = np.percentile(finite_scalars, 95)
-                    scalars_norm = np.clip(scalars, p5, p95)
-                    if p95 > p5:
-                        scalars_norm = (scalars_norm - p5) / (p95 - p5)
-                    grid[method + '_normalized'] = scalars_norm
-                    self.plotter.add_mesh(
-                        grid, 
-                        scalars=method + '_normalized',
-                        cmap='plasma',
-                        show_scalar_bar=True,
-                        style='points',
-                        point_size=5
-                    )
-                
-        except Exception as e:
-            print(f"Streamline error: {e}")
-            # Fallback: show just the grid points with computed scalars
-            finite_mask = np.isfinite(scalars)
-            if np.any(finite_mask):
-                finite_scalars = scalars[finite_mask]
-                p5 = np.percentile(finite_scalars, 5)
-                p95 = np.percentile(finite_scalars, 95)
-                scalars_norm = np.clip(scalars, p5, p95)
-                if p95 > p5:
-                    scalars_norm = (scalars_norm - p5) / (p95 - p5)
-                grid[method + '_normalized'] = scalars_norm
-                self.plotter.add_mesh(
-                    grid, 
-                    scalars=method + '_normalized',
-                    cmap='plasma',
-                    show_scalar_bar=True,
-                    style='points',
-                    point_size=3
-                )
+        streams = grid.streamlines_from_source(
+            source=pv.PolyData(start_points),
+            vectors='vectors',
+            max_steps=500,
+            integration_direction='forward'
+        )
+        
+        stream_scalars = np.zeros(streams.n_points)
+        for i, point in enumerate(streams.points):
+            x, y, z = point
+            stream_scalars[i] = self.bv.return_coloring(x, y, z, method)
+        
+        finite_values = stream_scalars[np.isfinite(stream_scalars)]
+        p5 = np.percentile(finite_values, 5)
+        p95 = np.percentile(finite_values, 95)
+        stream_scalars = np.clip(stream_scalars, p5, p95)
+        stream_scalars = (stream_scalars - p5) / (p95 - p5)
+        
+        streams[method + '_normalized'] = stream_scalars
+        
+        tubes = streams.tube(radius=0.02)
+        self.plotter.add_mesh(
+            tubes, 
+            scalars=method + '_normalized',
+            cmap='plasma',
+            show_scalar_bar=True,
+            scalar_bar_args={'title': f'{method} Criterion'}
+        )
         
         self.plotter.reset_camera()
 
@@ -680,7 +553,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.plot_tab_acc, "Tornado Plotting Acc")
 
         if show_liutex_tab:
-            self.tabs.addTab(self.liutex_tab, "Liutex")
+            self.tabs.addTab(self.liutex_tab, "3d Mesh")
 
         self.tabs.currentChanged.connect(self.on_tab_changed)
 
@@ -704,7 +577,7 @@ class MainWindow(QMainWindow):
     
     def on_tab_changed(self):
         tabText = self.tabs.tabText(self.tabs.currentIndex())
-        if tabText == "Liutex":
+        if tabText == "3d Mesh":
             self.control_panel.setVisible(False)
         else:
             self.control_panel.setVisible(True)
@@ -764,11 +637,11 @@ class PopUpWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Liutex settings")
+        self.setWindowTitle("3d Mesh settings")
         self.setGeometry(100, 100, 300, 100)
         
         layout = QVBoxLayout()
-        self.checkbox = QCheckBox("Show Liutex Tab")
+        self.checkbox = QCheckBox("Show 3d Mesh Tab")
         self.checkbox.setChecked(False)
         self.checkbox.stateChanged.connect(self.toggle_listbox_visibility)
         layout.addWidget(self.checkbox)

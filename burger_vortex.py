@@ -71,7 +71,7 @@ class BurgersVortex():
       elif method == "lambda_ci":
         return self.lambda_ci_criterion_method(x, y, z)
       elif method == "lambda_2":
-        return self.lambda_2_critetion_method(x, y, z)
+        return self.lambda_2_criterion_method(x, y, z)
       elif method == "liutex":
         return self.calculate_liutex_magnitude(x, y, z)
       elif method == "velocity_magnitude":
@@ -80,87 +80,58 @@ class BurgersVortex():
       else:
         return 0.0
       
-    def delta_method(self, x, y, z):
-      try:
-        grad = self.velocity_gradient(x, y, z)
-        
-        # Check for invalid gradients
-        if not np.all(np.isfinite(grad)):
-            return 0.0
-            
-        # Characteristic polynomial coefficients
-        I1 = np.trace(grad)  # First invariant
-        I2 = 0.5 * (I1**2 - np.trace(np.dot(grad, grad)))  # Second invariant (corrected formula)
-        I3 = np.linalg.det(grad)  # Third invariant
-        
-        # Q and R for discriminant calculation
-        Q = (3*I2 - I1**2) / 9
-        R = (2*I1**3 - 9*I1*I2 + 27*I3) / 54
-        
-        # Discriminant delta
-        delta = Q**3 + R**2
-        
-        # Return a more meaningful value for visualization
-        # Use log scale for better distribution
-        if delta > 0:
-            return np.log10(1 + abs(delta))
-        else:
-            return -np.log10(1 + abs(delta))
-            
-      except Exception:
-        return 0.0
-      
-      
-    def Q_method(self, x, y, z):
-      try:
-        grad = self.velocity_gradient(x, y, z)
-        
-        # Check for invalid gradients
-        if not np.all(np.isfinite(grad)):
-            return 0.0
-            
-        # Strain rate tensor (symmetric part)
-        S = 0.5 * (grad + grad.T) 
-        # Vorticity tensor (antisymmetric part)
-        Omega = 0.5 * (grad - grad.T)
-        
-        # Q-criterion: Q = 0.5 * (||Omega||^2 - ||S||^2)
-        # Using Frobenius norm squared
-        Omega_magnitude_sq = np.sum(Omega * Omega)
-        S_magnitude_sq = np.sum(S * S)
-        Q = 0.5 * (Omega_magnitude_sq - S_magnitude_sq)
-        
-        # Use logarithmic scaling for better visualization
-        # Positive Q indicates vortex regions
-        if Q > 0:
-            return np.log10(1 + Q)
-        else:
-            return -np.log10(1 + abs(Q))
-        
-      except Exception:
-        return 0.0
-    
-    def lambda_ci_criterion_method(self, x, y, z):
+    def lambda_2_criterion_method(self, x, y, z):
       grad = self.velocity_gradient(x, y, z)
-      eigvals = np.linalg.eigvals(grad)
-      lambda_ci = np.max(np.abs(np.imag(eigvals)))
       
-      return lambda_ci
+      if not np.all(np.isfinite(grad)):
+          return 0.0
       
-    def lambda_2_critetion_method(self, x, y, z):
-      grad = self.velocity_gradient(x, y, z)
-      # Strain rate tensor (symmetric part)
       S = 0.5 * (grad + grad.T)
-      # Vorticity tensor (antisymmetric part)  
       Omega = 0.5 * (grad - grad.T)
       
-      # Lambda-2 criterion uses S^2 + Omega^2 tensor
       tensor = np.dot(S, S) + np.dot(Omega, Omega)
-      eigvals = np.linalg.eigvals(tensor)
-      eigvals_sorted = np.sort(eigvals)
-      lambda_2 = eigvals_sorted[1]  # Second largest eigenvalue
+      eigvals = np.sort(np.linalg.eigvals(tensor))
       
-      return lambda_2
+      return eigvals[1] 
+      
+    def delta_method(self, x, y, z):
+      grad = self.velocity_gradient(x, y, z)
+      
+      if not np.all(np.isfinite(grad)):
+          return 0.0
+          
+      I1 = np.trace(grad)
+      I2 = 0.5 * (I1**2 - np.trace(np.dot(grad, grad)))
+      I3 = np.linalg.det(grad)
+      
+      Q = (3*I2 - I1**2) / 9
+      R = (2*I1**3 - 9*I1*I2 + 27*I3) / 54
+      
+      delta = Q**3 + R**2
+      
+      return np.log10(1 + abs(delta)) * np.sign(delta)
+      
+    def Q_method(self, x, y, z):
+      grad = self.velocity_gradient(x, y, z)
+      
+      if not np.all(np.isfinite(grad)):
+          return 0.0
+          
+      S = 0.5 * (grad + grad.T) 
+      Omega = 0.5 * (grad - grad.T)
+      
+      Q = 0.5 * (np.sum(Omega * Omega) - np.sum(S * S))
+      
+      return np.log10(1 + abs(Q)) * np.sign(Q)
+
+    def lambda_ci_criterion_method(self, x, y, z):
+      grad = self.velocity_gradient(x, y, z)
+      
+      if not np.all(np.isfinite(grad)):
+          return 0.0
+      
+      eigvals = np.linalg.eigvals(grad)
+      return np.max(np.abs(np.imag(eigvals)))
     
     def calculate_alpha_beta(self, x, y, z):
       h = 1e-6
@@ -169,7 +140,6 @@ class BurgersVortex():
       dv_dx = (self.velocity2(x + h, y, z)[1] - self.velocity2(x - h, y, z)[1]) / (2*h)
       dv_dy = (self.velocity2(x, y + h, z)[1] - self.velocity2(x, y - h, z)[1]) / (2*h)
 
-      # Corrected formulas for alpha and beta based on proper definitions
       alpha = 0.5 * np.sqrt((du_dx - dv_dy)**2 + (du_dy + dv_dx)**2)
       beta = 0.5 * (dv_dx - du_dy)
 
@@ -177,8 +147,5 @@ class BurgersVortex():
 
     def calculate_liutex_magnitude(self, x, y, z):
       alpha, beta = self.calculate_alpha_beta(x, y, z)
-      # Liutex magnitude: R = 2 * (|β| - α) where β > α
-      # Only consider positive values (vortex regions)
       R = 2 * max(0, np.abs(beta) - alpha)
-      
       return R
